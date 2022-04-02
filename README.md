@@ -1,5 +1,7 @@
 ## ***microPy-IDE***
 
+## STATUS: Beta release version 0.0.1 04/02/2022.
+
 The *microPy-IDE* is a development environment for the [microPython language](https://micropython.org/) which is a subset of Python 3 and is optimised to run on microcontrollers and in constrained environments. 
 
 ![](https://github.com/Abbykus/microPy-IDE/blob/3a2bbbc565d9bde55c800ac3cb0ba72c25d3f430/photos/microPy-IDE.png)
@@ -25,5 +27,17 @@ The *microPy-IDE* is a development environment for the [microPython language](ht
   - Create new directory on target.
   - Delete target directory.
 
+## DEPENDENCIES
+As a prerequisite, the host PC must have Python 3 and PIP3 installed. 
+Your OS likely has Python 3.x installed. See the following to install PIP3:
+
+#### Linux / MacOS
+  Launch terminal and type **sudo apt install python3-pip**
+  
+#### Windows
+See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
+
+### Adafruit Ampy
+This application provides communication with the target device. See [here](https://learn.adafruit.com/micropython-basics-load-files-and-run-code/install-ampy) for installation instructions.
 
 
