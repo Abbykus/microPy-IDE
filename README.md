@@ -29,15 +29,21 @@ The *microPy-IDE* is a development environment for the [microPython language](ht
 
 ## DEPENDENCIES
 As a prerequisite, the host PC must have Python 3 and PIP3 installed. 
-Your OS likely has Python 3.x installed. See the following to install PIP3:
+Your OS likely has Python 3.x installed. See the following to install **PIP3:**
 
-#### Linux / MacOS
-  Launch terminal and type **sudo apt install python3-pip**
-  
-#### Windows
-See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
+  #### *Linux / MacOS*
+    Launch terminal and type **sudo apt install python3-pip**
 
-### Adafruit Ampy
+  #### *Windows*
+  See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
+
+### Install PYQT5
+Open a terminal and type **pip3 install PyQt5**
+
+### Install Adafruit Ampy
 This application provides communication with the target device. See [MicroPython Basics](https://cdn-learn.adafruit.com/downloads/pdf/micropython-basics-load-files-and-run-code.pdf) for installation instructions.
+
+### Install Zeal (optional)
+
 
 
