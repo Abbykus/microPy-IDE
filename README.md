@@ -46,10 +46,14 @@ Your OS likely has Python 3.x installed. If not please google for installation o
 Open a terminal and type **pip3 install PyQt5**
 
 ### Install Adafruit Ampy
-This application provides communication with the target device. See [MicroPython Basics](https://cdn-learn.adafruit.com/downloads/pdf/micropython-basics-load-files-and-run-code.pdf) for installation instructions.
+This application provides communication with and control of the microPython target device (QDEV board). See [MicroPython Basics](https://cdn-learn.adafruit.com/downloads/pdf/micropython-basics-load-files-and-run-code.pdf) for installation instructions.
 
 ### Install Zeal (optional)
 
+- *Linux / MacOS*
+  - Launch terminal and type **sudo apt install zeal**
+
+- *Windows*
 
 ## MicroPython ON THE QDEV Boards
 All versions of the Abbykus QDEV boards are capable of running the MicroPython interpreted language. 
