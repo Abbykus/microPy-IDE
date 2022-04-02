@@ -55,7 +55,7 @@ This application provides communication with and control of the microPython targ
 
 - *Windows*
 
-## MicroPython ON THE QDEV Boards
+## MicroPython Firmware for the QDEV Boards
 All versions of the Abbykus QDEV boards are capable of running the MicroPython interpreted language. 
 Please see [MicroPython-python for Microcontrollers](https://micropython.org/) for more information.
 
