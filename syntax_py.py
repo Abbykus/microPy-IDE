@@ -1,4 +1,5 @@
 # syntax.py
+# syntax highlighter for microPython
 import sys
 from PyQt5.QtCore import QRegExp, QRegularExpression
 from PyQt5.QtGui import QColor, QTextCharFormat, QFont, QSyntaxHighlighter
