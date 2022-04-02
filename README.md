@@ -38,6 +38,6 @@ Your OS likely has Python 3.x installed. See the following to install PIP3:
 See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
 
 ### Adafruit Ampy
-This application provides communication with the target device. See [here](https://learn.adafruit.com/micropython-basics-load-files-and-run-code/install-ampy) for installation instructions.
+This application provides communication with the target device. See [Adafruit ampy Basics](https://cdn-learn.adafruit.com/downloads/pdf/micropython-basics-load-files-and-run-code.pdf) for installation instructions.
 
 
