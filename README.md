@@ -9,7 +9,7 @@ Using the familiar Python programming language you can interact with development
 
 ![](https://github.com/Abbykus/microPy-IDE/blob/3a2bbbc565d9bde55c800ac3cb0ba72c25d3f430/photos/microPy-IDE.png)
 
-The *microPy-IDE* runs on a host PC and connects to a target device (QDEV board) via a serial port (USB-serial) or over WiFi. The target device must be running the correct version of the microPython interpreter for the targets specific microcontroller. See [microPython downloads](https://micropython.org/download/).
+The *microPy-IDE* runs on a host PC and connects to a target device (QDEV board) via a serial port (USB-serial) or over WiFi. The target device must be running the correct version of the microPython interpreter for the target's specific microcontroller. See [microPython downloads](https://micropython.org/download/).
 
 The *microPy-IDE* allows the user to create, test, and deploy microPython scripts. *microPy-IDE* features include:
 - Written in Python 3 using PYQT5 GUI library.
