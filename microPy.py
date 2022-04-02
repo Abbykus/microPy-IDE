@@ -1,5 +1,7 @@
 # !/usr/bin/python3
 # -- coding: utf-8 --
+# microPy.py - microPython IDE for microcontrollers.
+#
 from __future__ import print_function
 
 from PyQt5.QtWidgets import (QPlainTextEdit, QWidget, QVBoxLayout, QApplication, QFileDialog, QMessageBox, QLabel,
