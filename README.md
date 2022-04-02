@@ -31,7 +31,7 @@ The *microPy-IDE* allows the user to create, test, and deploy microPython script
   - Delete target directory.
 
 ## DEPENDENCIES
-As a prerequisite, the host PC must have Python 3 and PIP3 installed. 
+As a prerequisite, the host PC must have Python 3.x and PIP3 installed. 
 Your OS likely has Python 3.x installed. If not please google for installation on your OS.
 
 ### Install PIP3
