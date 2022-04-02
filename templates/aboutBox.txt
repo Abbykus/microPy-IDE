@@ -1,0 +1,10 @@
+	    def about(self):
+            title = "About microPy"
+            message = """
+                    <span style='color: #3465a4; font-size: 20pt;font-weight: bold;'
+                    >The Title 1.0</strong></span></p><h3>MicroPython IDE</h3>created by ?
+                    <br>
+                    <span style='color: #8a8a8a; font-size: 9pt;'>Copyright @2022</strong></span></p>
+                        """
+            self.infobox(title, message)
+
