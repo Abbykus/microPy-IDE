@@ -17,6 +17,7 @@ from PyQt5.QtCore import (Qt, QVariant, QRect, QDir, QFile, QFileInfo, QTextStre
 
 from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
 from PyQt5.QtSerialPort import QSerialPort
+
 from sys import argv
 import inspect
 from syntax_py import *
@@ -228,21 +229,36 @@ class pyEditor(QMainWindow):
     def __init__(self, parent=None):
         super(pyEditor, self).__init__(parent)
 
-        #*** Class for storing Project file info
-        class ProjectDir:
-            def __init__(self, parent=pyEditor):
-                self.curScript = ''             # filename only
-                self.curPath = ''               # path to the filename
-                self.scriptIsRunning = False          # script running state
-                self.targetFileList = []        # current list of target files
+        # non-persistent run time variables
+        self.rt_settings = {
+            'os_name': '',
+            'cur_project_path': '',
+            'cur_target_script': '',
+            'script_is_running': False,
 
-        self.projectDir = ProjectDir()          # project file info
-        self.projectDir.scriptIsRunning = False
+            # external process stdout redirect flags
+            'list_target_files': False,
+            'upload_target_file': False,
+            'remove_target_file': False,
 
-        # redirect options for data returned from an external process
-        self.listTargetFiles = False
-        self.uploadTargetFile = False
-        self.removeTargetFile = False
+            # editor behavior flags
+            'ignore_text_changed': False,
+            'block_echo': False,
+            'block_cr': False,
+            'ignore_serial_after_reset': False,
+        }
+
+        self.settings = QSettings("Abbykus", "microPy")
+
+        self.rt_settings['os_name'] = sys.platform
+        self.rt_settings['cur_project_path'] = os.getcwd() + '/projects'
+        self.rt_settings['cur_target_script'] = self.settings.value('cur_target_script', '')
+
+        self.TargetFileList = []
+
+        # set up the non-persistent system settings
+        print('os name= ' + self.rt_settings['os_name'])     # find name of os, 'linux', 'windows', etc
+        print('project path= ' + self.rt_settings['cur_project_path'])
 
         self.extProc = QProcess()       # used to start external programs
         self.tabsList = QTabWidget()
@@ -252,12 +268,6 @@ class pyEditor(QMainWindow):
         self.tabsList.tabCloseRequested.connect(self.remove_tab)
 
         self.cursor = QTextCursor()
-        self.ignoreTextChanged = False
-
-        self.blockEcho = False
-        self.blockCR = False
-        self.ignoreSerialAfterReset = False     # avoid junk chars after target reset
-
         self.root = QFileInfo.path(QFileInfo(QCoreApplication.arguments()[0]))
         self.wordList = []
         self.appfolder = self.root
@@ -267,13 +277,10 @@ class pyEditor(QMainWindow):
         self.MaxRecentFiles = 15
         self.windowList = []
         self.recentFileActs = []
-        self.settings = QSettings("Abbykus", "microPy")
+
         self.dirpath = QDir.homePath() + "/PycharmProjects/"
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.setWindowIcon(QIcon.fromTheme("applications-python"))
-
-        self.projectDir.curScript = self.settings.value('curRunningPath', self.root)
-        self.projectDir.curPath = self.settings.value('curRunningScript', '')
 
         # create the QSerialPort widget
         self.serialport = QSerialPort(self)
@@ -500,6 +507,15 @@ class pyEditor(QMainWindow):
         self.filemenu = bar.addMenu("File")
         self.filemenu.setStyleSheet(stylesheet2(self))
         self.separatorAct = self.filemenu.addSeparator()
+        # Create new project
+        self.newProjectAct = QAction("New Project", self, triggered=self.createNewProject)
+        self.newProjectAct.setIcon(QIcon.fromTheme(self.root + '/icons/new_project'))
+        self.filemenu.addAction(self.newProjectAct)
+        # Open existing project
+        self.openProjectAct = QAction("Open Project", self, triggered=self.openExistingProject)
+        self.openProjectAct.setIcon(QIcon.fromTheme(self.root + '/icons/open_project'))
+        self.filemenu.addAction(self.openProjectAct)
+
         self.filemenu.addAction(self.newAct)
         self.filemenu.addAction(self.openAct)
         self.filemenu.addAction(self.saveAct)
@@ -739,10 +755,17 @@ class pyEditor(QMainWindow):
             self.serialport.setFlowControl(QSerialPort.HardwareControl)
             self.serialport.readyRead.connect(self.serial_read_bytes)
             self.shellText.clear()
-            self.shellText.setText(port + ' serial port is connected.')
+            self.shellText.setText('Serial port ' + port + ' is connected to Target.')
         else:
             self.shellText.clear()
             self.shellText.setText('Unable to open Serial port ' + port)
+
+
+    def createNewProject(self):
+        return
+
+    def openExistingProject(self):
+        return
 
     # Function to display context menu on the target file viewer
     def targetViewerContextMenu(self, position):
@@ -880,7 +903,7 @@ class pyEditor(QMainWindow):
 
     # text in the editor of the current selected tab has changed
     def onTextHasChanged(self):
-        if self.ignoreTextChanged == True:
+        if self.rt_settings['ignore_text_changed']:
             return
         else:
             self.setModified(True)
@@ -900,7 +923,7 @@ class pyEditor(QMainWindow):
         if event.type() == QEvent.KeyPress and obj is self.shellText:
             if self.shellText.hasFocus():
                 if event.key() == Qt.Key_Return:
-                    self.blockCR = True
+                    self.rt_settings['block_cr'] = True
                     self.serialport.write(b'\x0D')   # CR
                 elif event.key() == Qt.Key_Backspace:
                     self.serialport.write(b'\x08')
@@ -908,7 +931,7 @@ class pyEditor(QMainWindow):
                     print(event.key())
                     self.serialport.write(b'\x2191')
                 else:
-                    self.blockEcho = True
+                    self.rt_settings['block_echo'] = True
                     self.serialport.writeData(bytes(event.text(), 'utf-8'))
         return super().eventFilter(obj, event)
 
@@ -926,13 +949,13 @@ class pyEditor(QMainWindow):
         self.serialport.setDataTerminalReady(False)
         time.sleep(0.1)
         self.serialport.setDataTerminalReady(True)
-        self.ignoreSerialAfterReset = True      # ignore junk chars from target after reset
+        self.rt_settings['ignore_serial_after_reset'] = True      # ignore junk chars from target after reset
 
     def viewTargetFiles(self):
         proc = 'ampy --port ' + self.settings.value('comportname', '/dev/ttyUSB0')
         proc += ' --baud ' + self.settings.value('baudrate', '115200')  # add baudrate
         proc += ' ls'
-        self.listTargetFiles = True     # direct listed files into the Target Files viewer
+        self.rt_settings['list_target_files'] = True    # direct listed files into the Target Files viewer
         self.startProcess(proc)
 
     # Start external process. procCmdStr has the name of the external proc and its arguments
@@ -961,10 +984,10 @@ class pyEditor(QMainWindow):
         stdout = bytes(data).decode("utf8")
 
         # --- redirect files list to Target Files viewer
-        if self.listTargetFiles and len(stdout) > 0:
-            self.listTargetFiles = False
+        if self.rt_settings['list_target_files'] and len(stdout) > 0:
+            self.rt_settings['list_target_files']  = False
             self.targetFileViewer.clear()
-            self.projectDir.targetFileList.clear()
+            self.TargetFileList.clear()
             stdout_list = stdout.split('\n')
             port = self.settings.value('comportname', '/dev/ttyUSB0')
             targ1 = QTreeWidgetItem([port])
@@ -974,7 +997,7 @@ class pyEditor(QMainWindow):
                 # print('stdout_list[i]=' + stdout_list[i])
                 if stdout_list[i].startswith('/', 0, 1) and stdout_list[i].find('.') != -1:     # is this a directory?
                     stdout_list[i] = stdout_list[i].replace('/', '', 1)
-                self.projectDir.targetFileList.append(stdout_list[i])
+                self.TargetFileList.append(stdout_list[i])
                 targ1_child = QTreeWidgetItem([stdout_list[i]])
                 targ1.addChild(targ1_child)
 
@@ -982,8 +1005,8 @@ class pyEditor(QMainWindow):
             self.targetFileViewer.expandAll()
 
         # Redirect target file text to the python text editor on the current tab
-        elif self.uploadTargetFile and len(stdout) > 0:
-            self.uploadTargetFile = False
+        elif self.rt_settings['upload_target_file'] and len(stdout) > 0:
+            self.rt_settings['upload_target_file'] = False
             print(stdout)
             mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(stdout.replace(tab, "    "))
             QApplication.restoreOverrideCursor()
@@ -1000,17 +1023,17 @@ class pyEditor(QMainWindow):
         state_name = states[state]
         # reopen closed serial port so REPL will work
         if 'Stopped' in state_name:
-            self.serialport.open(QIODevice.ReadWrite)
-            # print('serial port reopened')
+            self.serialport.open(QIODevice.ReadWrite)       # reopen serial port
         self.shellText.append(f"State changed: {state_name}")
 
     def procFinished(self):
-        if self.projectDir.scriptIsRunning:
-            self.shellText.append('\nScript ' + self.projectDir.curPath + '.' + self.projectDir.curScript + ' has Completed\n')
-            self.projectDir.scriptIsRunning = False
+        if self.rt_settings['script_is_running']:
+            self.shellText.append('\nScript ' + self.rt_settings['cur_project_path'] + '.' +
+                        self.rt_settings['cur_target_script'] + ' has Completed\n')
+            self.rt_settings['script_is_running'] = False
         self.shellText.append("External process complete")
-        if self.removeTargetFile:
-            self.removeTargetFile = False
+        if self.rt_settings['remove_target_file']:
+            self.rt_settings['remove_target_file'] = False
             QApplication.restoreOverrideCursor()
 
     ### Run current script on target device (no download)
@@ -1022,7 +1045,7 @@ class pyEditor(QMainWindow):
         dialog = QFileDialog(self)
         dialog.setWindowTitle('Run Script on Target Device')
         dialog.setNameFilter('(*.py)')
-        dialog.setDirectory(self.projectDir.curPath + '.' + self.projectDir.curScript)
+        dialog.setDirectory(self.rt_settings['cur_project_path'] + '.' + self.rt_settings['cur_target_script'])
         dialog.setFileMode(QFileDialog.ExistingFile)
         filename = None
         fname = ''
@@ -1035,16 +1058,16 @@ class pyEditor(QMainWindow):
             return
 
         proc += ' run ' + fname
-        self.projectDir.curScript = fname
+        self.rt_settings['cur_target_script'] = fname
         self.shellText.append('\nStarting script: ' + fname + '\n')
         self.shellText.moveCursor(self.cursor.End)
-        self.projectDir.curPath = fname
+        self.rt_settings['cur_project_path'] = fname
         self.settings.setValue('curScript', fname)
-        self.projectDir.scriptIsRunning = True
+        self.rt_settings['script_is_running'] = True
         self.startProcess(proc)
 
     def stopTargetScript(self):
-        self.shellText.append("Stopping current script " + self.projectDir.curScript + "\n")
+        self.shellText.append("Stopping current script " + self.rt_settings['cur_target_script']+ "\n")
         self.extProc.kill()
         start_time = time.time()
         while not self.extProc.atEnd():  # wait for current process to end.
@@ -1057,8 +1080,8 @@ class pyEditor(QMainWindow):
         dialog = QFileDialog(self)
         dialog.setWindowTitle('Download File to Target Device')
         dialog.setNameFilter('(*.py)')
-        dialog.setDirectory(self.projectDir.curPath + '.' + self.projectDir.curScript)
-        # print('*** projectDir.curPath=' + self.projectDir.curPath + '\n')
+        dialog.setDirectory(self.rt_settings['cur_project_path'] + '.' + self.rt_settings['cur_target_script'])
+        # print('*** rt_settings.curProjectPath=' + self.rt_settings['cur_project_path'] + '\n')
         dialog.setFileMode(QFileDialog.ExistingFile)
         filename = None
         fname = ''
@@ -1090,8 +1113,8 @@ class pyEditor(QMainWindow):
 
         self.upldTree.setHeaderItem(QTreeWidgetItem([self.settings.value('comportname', '/dev/ttyUSB0')]))
         items = []
-        for i in range(len(self.projectDir.targetFileList)):
-            l1 = QTreeWidgetItem([self.projectDir.targetFileList[i]])
+        for i in range(len(self.TargetFileList)):
+            l1 = QTreeWidgetItem([self.TargetFileList[i]])
             items.append(l1)
 
         self.upldTree.addTopLevelItems(items)
@@ -1130,7 +1153,7 @@ class pyEditor(QMainWindow):
             proc = 'ampy -p ' + self.settings.value('comportname', '/dev/ttyUSB0')
             proc += ' -b ' + self.settings.value('baudrate', '115200')  # add baudrate
             proc += ' get ' + _item
-            self.uploadTargetFile = True
+            self.rt_settings['upload_target_file'] = True
             self.startProcess(proc)
 
     def upldDialogCancel(self):
@@ -1156,8 +1179,8 @@ class pyEditor(QMainWindow):
         self.rmTree.move(0, 0)
         self.rmTree.setHeaderItem(QTreeWidgetItem([self.settings.value('comportname', '/dev/ttyUSB0')]))
         items = []
-        for i in range(len(self.projectDir.targetFileList)):
-            l1 = QTreeWidgetItem([self.projectDir.targetFileList[i]])
+        for i in range(len(self.TargetFileList)):
+            l1 = QTreeWidgetItem([self.TargetFileList[i]])
             items.append(l1)
 
         self.rmTree.addTopLevelItems(items)
@@ -1192,7 +1215,7 @@ class pyEditor(QMainWindow):
         # dialog has closed - check if the entry was accepted or rejected
         if self.rmScriptDialog.result() == QDialog.Accepted:
             QApplication.setOverrideCursor(Qt.WaitCursor)
-            self.removeTargetFile = True
+            self.rt_settings['remove_target_file'] = True
             _item = self.rmTree.currentItem().text(0)
             proc = 'ampy -p ' + self.settings.value('comportname', '/dev/ttyUSB0')
             proc += ' -b ' + self.settings.value('baudrate', '115200')  # add baudrate
@@ -1235,29 +1258,29 @@ class pyEditor(QMainWindow):
         i = 0
         # strip binary crap from serial data
         while i < len(serialBytes):
-            if (serialBytes[i] == 10 or serialBytes[i] == 13) and not self.blockCR:    # LF, CR are OK
+            if (serialBytes[i] == 10 or serialBytes[i] == 13) and not self.rt_settings['block_cr']:    # LF, CR are OK
                 outstr = outstr + chr(serialBytes[i])
             elif 31 < serialBytes[i] < 128:
                 outstr = outstr + chr(serialBytes[i])
             i += 1
 
-        self.blockCR = False
+        self.rt_settings['block_cr'] = False
 
         # put received chars into the shellText widget
-        if not self.blockEcho:
-            if self.ignoreSerialAfterReset:
+        if not self.rt_settings['block_echo']:
+            if self.rt_settings['ignore_serial_after_reset']:
                 word_offset = outstr.find('Micro')
                 if word_offset < 0:
                     outstr = ''
                 else:
-                    self.ignoreSerialAfterReset = False
+                    self.rt_settings['ignore_serial_after_reset'] = False
                     outstr = '\n' + outstr[word_offset:]
             self.shellText.moveCursor(self.cursor.End)
             self.shellText.insertPlainText(outstr)
             self.shellText.moveCursor(self.cursor.End)
             self.shellText.ensureCursorVisible()
         else:
-            self.blockEcho = False
+            self.rt_settings['block_echo'] = False
 
     def saveComPort(self):
         if len(self.comportfield.text()) > 0:
@@ -1559,7 +1582,7 @@ class pyEditor(QMainWindow):
         action = self.sender()
         if action:
             myfile = action.data()
-            print(myfile)
+            print('open recent file: ' + myfile)
             if (self.maybeSave()):
                 if QFile.exists(myfile):
                     self.openFileOnStart(myfile)
@@ -2053,16 +2076,16 @@ class pyEditor(QMainWindow):
         self.updateRecentFileActions()
 
     def readSettings(self):
-        if self.settings.value("pos") != "":
-            pos = self.settings.value("pos", QPoint(200, 200))
+        if self.settings.value("winpos") != "":
+            pos = self.settings.value("winpos", QPoint(200, 200))
             self.move(pos)
-        if self.settings.value("size") != "":
-            size = self.settings.value("size", QSize(400, 400))
+        if self.settings.value("winsize") != "":
+            size = self.settings.value("winsize", QSize(400, 400))
             self.resize(size)
 
     def writeSettings(self):
-        self.settings.setValue("pos", self.pos())
-        self.settings.setValue("size", self.size())
+        self.settings.setValue("winpos", self.pos())
+        self.settings.setValue("winsize", self.size())
 
     def msgbox(self, title, message):
         QMessageBox.warning(self, title, message)
@@ -2220,9 +2243,8 @@ if __name__ == '__main__':
     app = QApplication(argv)
     translator = QTranslator(app)
     locale = QLocale.system().name()
-    print(locale)
+    print('locale = ' + locale)
     path = QLibraryInfo.location(QLibraryInfo.TranslationsPath)
-    print(path)
     translator.load('qt_%s' % locale, path)
     app.installTranslator(translator)
     win = pyEditor()
@@ -2230,7 +2252,7 @@ if __name__ == '__main__':
     win.show()
     win.viewTargetFiles()       # try to view Target directory
     if len(argv) > 1:
-        print(argv[1])
+        print('argv= ' + argv[1])
         win.openFileOnStart(argv[1])
 
     sys.exit(app.exec_())
