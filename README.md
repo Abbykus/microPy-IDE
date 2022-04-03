@@ -1,4 +1,4 @@
-## ***microPy-IDE***
+# ***microPy-IDE***
 
 ## STATUS: Beta release version 0.0.1 04/02/2022.
 
@@ -43,7 +43,7 @@ Your OS likely has Python 3.x installed. If not please google for installation o
   - See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
 
 ### Install PYQT5
-Open a terminal and type **pip3 install PyQt5**
+Open a terminal and type **pip3 install pyqt5 pyqt5-tools**
 
 ### Install Adafruit Ampy
 The 'ampy' application provides communication with and control of the microPython target device (QDEV board). See [MicroPython Basics](https://cdn-learn.adafruit.com/downloads/pdf/micropython-basics-load-files-and-run-code.pdf) for installation instructions.
