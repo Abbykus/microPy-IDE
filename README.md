@@ -1,6 +1,6 @@
 # ***microPy-IDE***
 
-## STATUS: Beta release version 0.0.1 04/02/2022.
+## STATUS: Beta release version 0.0.2 04/04/2022.
 
 The *microPy-IDE* is a development environment for the [microPython language](https://micropython.org/) which is a subset of Python 3 and is optimised to run on microcontrollers and in constrained environments. 
 
