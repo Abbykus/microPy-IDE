@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (QPlainTextEdit, QWidget, QVBoxLayout, QApplication,
                              QCompleter, QHBoxLayout, QTextEdit, QToolBar, QComboBox, QAction, QLineEdit, QDialog,
                              QPushButton, QToolButton, QMenu, QMainWindow, QInputDialog, QColorDialog, QStatusBar,
                              QSystemTrayIcon, QSplitter, QTreeWidget, QTreeWidgetItem, QTabWidget, QDialogButtonBox,
-                             QScrollBar, QSpacerItem, QSizePolicy, QLayout)
+                             QScrollBar, QSpacerItem, QSizePolicy, QLayout, QStyle, QFrame, QHeaderView)
 from PyQt5.QtGui import (QIcon, QPainter, QTextFormat, QColor, QTextCursor, QKeySequence, QClipboard, QTextDocument,
                          QPixmap, QStandardItemModel, QStandardItem, QCursor, QPalette)
 from PyQt5.QtCore import (Qt, QVariant, QRect, QDir, QFile, QFileInfo, QTextStream, QSettings, QTranslator, QLocale,
@@ -28,6 +28,7 @@ import re
 import time
 import codecs
 import mpconfig
+import ntpath
 
 # GLOBAL CONSTANTS
 lineBarColor = QColor("#84aff4")
@@ -248,6 +249,7 @@ class pyEditor(QMainWindow):
         # set up the non-persistent system settings
         print('os name= ' + self.rt_settings['os_name'])     # find name of os, 'linux', 'windows', etc
         print('project path= ' + self.rt_settings['cur_project_path'])
+        print('app path= ' + self.rt_settings['app_path'])
 
         self.extProc = QProcess()       # used to start external programs
         self.tabsList = QTabWidget()
@@ -277,15 +279,21 @@ class pyEditor(QMainWindow):
         self.projectFileViewer.setStyleSheet(stylesheet2(self))
         self.projectFileViewer.setHeaderItem(QTreeWidgetItem([" Project Files"]))
         self.projectFileViewer.setColumnCount(1)
-
-        l1 = QTreeWidgetItem(["microPy"])
-        l1_child = QTreeWidgetItem(["main.py"])
-        l1.addChild(l1_child)
-        l2_child = QTreeWidgetItem(["syntax.py"])
-        l1.addChild(l2_child)
-        self.projectFileViewer.addTopLevelItem(l1)
-        self.projectFileViewer.expandAll()
         self.projectFileViewer.itemDoubleClicked.connect(self.projectFileViewerDblClicked)
+        self.projectFileViewer.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.projectFileViewer.customContextMenuRequested.connect(self.projectViewerContextMenu)
+
+        # load project file viewer
+        self.showDirectoryTree(self.rt_settings['app_path'])
+
+        # create file browser back/forward bar
+        self.projectFileNavBar = QFrame()
+        self.projLayout = QHBoxLayout()
+        self.backbutton = QPushButton("Back")
+        self.forwardbutton = QPushButton("Fwd")
+        self.projLayout.addWidget(self.backbutton)
+        self.projLayout.addWidget(self.forwardbutton)
+        self.projectFileNavBar.setLayout(self.projLayout)
 
         # Create the Target file viewer
         self.targetFileViewer = fileViewer()
@@ -297,7 +305,6 @@ class pyEditor(QMainWindow):
         self.targetFileViewer.addTopLevelItem(targ1)
         self.targetFileViewer.expandAll()
         self.targetFileViewer.itemDoubleClicked.connect(self.targetFileViewerDblClicked)
-
         self.targetFileViewer.setContextMenuPolicy(Qt.CustomContextMenu)
         self.targetFileViewer.customContextMenuRequested.connect(self.targetViewerContextMenu)
 
@@ -646,6 +653,15 @@ class pyEditor(QMainWindow):
         #*** Layout widgets on the main page
         #*** LEFT Horiz Layout - Fileviewer's
         self.lvSplitter = QSplitter(Qt.Vertical)
+
+        # self.projFileLayout = QVBoxLayout()
+        # self.projFileLayout.addWidget(self.projectFileNavBar)
+        # self.projFileLayout.addWidget(self.projectFileViewer)
+        # self.projFileWidget = QWidget()
+        # self.projFileWidget.setLayout(self.projFileLayout)
+        # self.lvSplitter.addWidget(self.projFileWidget)
+
+
         self.lvSplitter.addWidget(self.projectFileViewer)
         self.lvSplitter.addWidget(self.targetFileViewer)
         self.lvSplitter.setStretchFactor(0, 2)
@@ -743,6 +759,58 @@ class pyEditor(QMainWindow):
             self.shellText.clear()
             self.shellText.setText('Unable to open Serial port ' + self.rt_settings['serial_port'])
 
+    def getDirectory(self):
+        gdir_dialog = QFileDialog(self, 'Select Directory', self.rt_settings['app_path'], None)
+        gdir_dialog.setFileMode(QFileDialog.DirectoryOnly)
+        #dialog.setSidebarUrls([QtCore.QUrl.fromLocalFile(place)])
+        if gdir_dialog.exec_() == QDialog.Accepted:
+            new_dir = gdir_dialog.selectedFiles()[0]
+            self.showDirectoryTree(new_dir)
+
+    # Show folders & files in the 'path' directory to the projectFileViewer tree widget
+    def showDirectoryTree(self, curpath):
+        #style = QApplication.style()
+        self.projectFileViewer.clear()
+        dirfiles = os.listdir(curpath)
+        fullpaths = map(lambda name: os.path.join(curpath, name), dirfiles)
+        head, tail = ntpath.split(curpath)
+        tldir = tail or ntpath.basename(head)
+        #print('tldir=' + tldir)
+        l1 = QTreeWidgetItem([tldir])
+        l1.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/folder_open"))
+
+        dirs = []
+        files = []
+
+        for file in fullpaths:
+            if os.path.isdir(file):
+                head, tail = ntpath.split(file)
+                file = tail or ntpath.basename(head)
+                dirs.append(file)
+            elif os.path.isfile(file):
+                head, tail = ntpath.split(file)
+                file = tail or ntpath.basename(head)
+                files.append(file)
+
+        # display directories on top
+        for ndir in dirs:
+            l1_child = QTreeWidgetItem(['/' + ndir])
+            l1_child.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/folder_closed"))
+            l1.addChild(l1_child)
+
+        # display files on bottom
+        for nfile in files:
+            l1_child = QTreeWidgetItem([nfile])
+            l1_child.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/file"))
+            l1.addChild(l1_child)
+
+        self.projectFileViewer.addTopLevelItem(l1)
+        self.projectFileViewer.expandAll()
+        self.projectFileViewer.setItemsExpandable(False)
+
+        # print(list(dirs))
+        # print(list(files))
+
 
     def createNewProject(self):
         return
@@ -796,6 +864,65 @@ class pyEditor(QMainWindow):
         tv_menu.addAction(tv_act8)
         position.setY(position.y() + 50)
         tv_menu.exec(self.targetFileViewer.mapToGlobal(position))
+
+    # Function to display context menu on the project file viewer
+    def projectViewerContextMenu(self, position):
+        pv_menu = QMenu(self.projectFileViewer)
+        pv_menu.addSection('PROJECT ACTIONS:')
+
+        pv_act1 = QAction("Back")
+        pv_act1.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/unindent"))
+        pv_act1.setIconVisibleInMenu(True)
+        pv_act1.triggered.connect(self.backUpOneDirectory)
+        pv_menu.addAction(pv_act1)
+
+        pv_act2 = QAction("Change Project Directory")
+        pv_act2.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/folder_open"))
+        pv_act2.setIconVisibleInMenu(True)
+        pv_act2.triggered.connect(self.getDirectory)
+        pv_menu.addAction(pv_act2)
+
+        pv_act3 = QAction("New Project File")
+        pv_act3.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/new24"))
+        pv_act3.setIconVisibleInMenu(True)
+        pv_act3.triggered.connect(self.newFile)
+        pv_menu.addAction(pv_act3)
+
+        # pv_act3 = QAction("Stop Target Script")
+        # pv_act3.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/stop"))
+        # pv_act3.setIconVisibleInMenu(True)
+        # pv_act3.triggered.connect(self.stopTargetScript)
+        # pv_menu.addAction(pv_act3)
+        # pv_act4 = QAction("Download File to Target")
+        # pv_act4.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/download"))
+        # pv_act4.setIconVisibleInMenu(True)
+        # pv_act4.triggered.connect(self.downloadScript)
+        # pv_menu.addAction(pv_act4)
+        # pv_act5 = QAction("Upload File from Target")
+        # pv_act5.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/upload"))
+        # pv_act5.setIconVisibleInMenu(True)
+        # pv_act5.triggered.connect(self.uploadScript)
+        # pv_menu.addAction(pv_act5)
+        # pv_act6 = QAction("Remove File from Target")
+        # pv_act6.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/delete"))
+        # pv_act6.setIconVisibleInMenu(True)
+        # pv_act6.triggered.connect(self.removeScript)
+        # pv_menu.addAction(pv_act6)
+        # pv_act7 = QAction("New Target Folder")
+        # pv_act7.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/folder"))
+        # pv_act7.setIconVisibleInMenu(True)
+        # pv_act7.triggered.connect(self.newTargetFolder)
+        # pv_menu.addAction(pv_act7)
+        # pv_act8 = QAction("Remove Target Folder")
+        # pv_act8.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/folder_del"))
+        # pv_act8.setIconVisibleInMenu(True)
+        # pv_act8.triggered.connect(self.newTargetFolder)
+        # pv_menu.addAction(pv_act8)
+        position.setY(position.y() + 50)
+        pv_menu.exec(self.projectFileViewer.mapToGlobal(position))
+
+    def backUpOneDirectory(self):
+        return
 
     # the action executed when menu is clicked
     def display_selection(self):
@@ -919,7 +1046,11 @@ class pyEditor(QMainWindow):
         return super().eventFilter(obj, event)
 
     def projectFileViewerDblClicked(self, index):
-        print(self.projectFileViewer.currentItem().text(0))
+        item = self.projectFileViewer.currentItem().text(0)
+        if item.startswith('/'):
+            self.showDirectoryTree(os.getcwd() + item)
+            print('cur dir=' + os.getcwd())
+        print(item)
 
     def targetFileViewerDblClicked(self, index):
         titem = self.targetFileViewer.currentItem().text(0)
@@ -968,11 +1099,12 @@ class pyEditor(QMainWindow):
 
         # --- redirect files list to Target Files viewer
         if self.rt_settings['list_target_files'] and len(stdout) > 0:
-            self.rt_settings['list_target_files']  = False
+            self.rt_settings['list_target_files'] = False
             self.targetFileViewer.clear()
             self.TargetFileList.clear()
             stdout_list = stdout.split('\n')
             targ1 = QTreeWidgetItem([self.rt_settings['serial_port']])
+            targ1.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/port"))
             for i in range(len(stdout_list)):
                 if stdout_list[i] == "":
                     break
@@ -981,6 +1113,7 @@ class pyEditor(QMainWindow):
                     stdout_list[i] = stdout_list[i].replace('/', '', 1)
                 self.TargetFileList.append(stdout_list[i])
                 targ1_child = QTreeWidgetItem([stdout_list[i]])
+                targ1_child.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/file"))
                 targ1.addChild(targ1_child)
 
             self.targetFileViewer.addTopLevelItem(targ1)
@@ -1615,12 +1748,10 @@ class pyEditor(QMainWindow):
     def newf_accept(self):
         self.newf_name = self.fileedit.text()
         self.fdialog.close()
-        return
 
     def newf_reject(self):
         self.newf_name = 'untitled'
         self.fdialog.close()
-        return
 
     ### open File
     def openFileOnStart(self, path=None):
