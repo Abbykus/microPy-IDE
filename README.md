@@ -4,7 +4,7 @@
 
 The *microPy-IDE* is a development environment for the [microPython language](https://micropython.org/) which is a subset of Python 3 and is optimised to run on microcontrollers and in constrained environments. 
 
-Using the familiar Python programming language you can interact with development hardware and control it, much like controlling hardware with an Arduino using C/C++. The Abbykus QDEV family of boards makes it easy to get started using MicroPython and thanks to recent contributions to MicroPython, you can turn a QDEV board into a MicroPython device.
+Using the familiar Python programming language you can interact with development hardware and control it, much like controlling hardware with an Arduino using C/C++. The Abbykus QDEV family of boards makes it easy to get started using MicroPython and thanks to recent contributions to MicroPython, you can turn any QDEV board into a MicroPython device.
 
 
 ![](https://github.com/Abbykus/microPy-IDE/blob/3a2bbbc565d9bde55c800ac3cb0ba72c25d3f430/photos/microPy-IDE.png)
@@ -31,8 +31,9 @@ The *microPy-IDE* allows the user to create, test, and deploy microPython script
   - Delete target directory.
 
 ## DEPENDENCIES
-As a prerequisite, the host PC must have Python 3.x and PIP3 installed. 
+As a prerequisite, the host PC must have at least Python 3.6 and PIP3 installed. 
 Your OS likely has Python 3.x installed. If not please google for installation on your OS.
+If the version of Python is lower than 3.6 please consider upgrading to the latest release.
 
 ### Install PIP3
 
@@ -42,18 +43,20 @@ Your OS likely has Python 3.x installed. If not please google for installation o
 - *Windows*
   - See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
 
-### Install PYQT5
+### Install PYQT5 GUI Widgets Toolkit
 Open a terminal and type **pip3 install pyqt5 pyqt5-tools**
 
 ### Install Adafruit Ampy
-The 'ampy' application provides communication with and control of the microPython target device (QDEV board). See [MicroPython Basics](https://cdn-learn.adafruit.com/downloads/pdf/micropython-basics-load-files-and-run-code.pdf) for installation instructions.
+The Adafruit 'ampy' application provides communication with and control of the microPython target device (QDEV board). See [MicroPython Basics](https://cdn-learn.adafruit.com/downloads/pdf/micropython-basics-load-files-and-run-code.pdf) for installation instructions.
 
-### Install Zeal (optional)
+### Install Zeal Offline Language Reference (optional)
 
 - *Linux / MacOS*
   - Launch terminal and type **sudo apt install zeal**
 
 - *Windows*
+
+After installing *zeal* goto tools->docsets and add Python language support.
 
 ## MicroPython Firmware for the QDEV Boards
 All versions of the Abbykus QDEV boards are capable of running the MicroPython interpreted language. 
