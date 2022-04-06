@@ -13,7 +13,7 @@ from PyQt5.QtGui import (QIcon, QPainter, QTextFormat, QColor, QTextCursor, QKey
                          QPixmap, QStandardItemModel, QStandardItem, QCursor, QPalette)
 from PyQt5.QtCore import (Qt, QVariant, QRect, QDir, QFile, QFileInfo, QTextStream, QSettings, QTranslator, QLocale,
                           QProcess, QPoint, QSize, QCoreApplication, QStringListModel, QLibraryInfo, QIODevice, QEvent,
-                          pyqtSlot)
+                          pyqtSlot, QModelIndex)
 
 from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
 from PyQt5.QtSerialPort import QSerialPort
@@ -29,6 +29,7 @@ import time
 import codecs
 import mpconfig
 import ntpath
+
 
 # GLOBAL CONSTANTS
 lineBarColor = QColor("#84aff4")
@@ -231,25 +232,28 @@ class pyEditor(QMainWindow):
         super(pyEditor, self).__init__(parent)
 
         # non-persistent run time variables
-        self.rt_settings = {'os_name': '', 'app_path': QFileInfo.path(QFileInfo(QCoreApplication.arguments()[0])),
-                            'cur_project_path': '', 'cur_target_script': '', 'script_is_running': False,
-                            'serial_port': '', 'baud_rate': '', 'list_target_files': False, 'upload_target_file': False,
-                            'remove_target_file': False, 'ignore_text_changed': False, 'block_echo': False,
-                            'block_cr': False, 'ignore_serial_after_reset': False, 'max_recent_files': 15}
+        # self.rt_settings = {'os_name': '', 'app_path': QFileInfo.path(QFileInfo(QCoreApplication.arguments()[0])),
+        #                     'cur_project_name': '', 'cur_project_path': '', 'cur_target_script': '',
+        #                     'script_is_running': False, 'serial_port': '', 'baud_rate': '',
+        #                     'list_target_files': False, 'upload_target_file': False, 'remove_target_file': False,
+        #                     'ignore_text_changed': False, 'block_echo': False, 'block_cr': False,
+        #                     'ignore_serial_after_reset': False, 'max_recent_files': 15}
 
         self.settings = QSettings("Abbykus", "microPy")
+        self.settings.setValue('APP_PATH', QFileInfo.path(QFileInfo(QCoreApplication.arguments()[0])))
+        self.settings.setValue('OS_TYPE', sys.platform)
 
-        self.rt_settings['os_name'] = sys.platform
-        self.rt_settings['cur_project_path'] = os.getcwd() + '/projects'
-        self.rt_settings['cur_target_script'] = self.settings.value('cur_target_script', '')
-        self.rt_settings['baud_rate'] = self.settings.value('baudrate', '115200')
+        # self.rt_settings['cur_project_name'] = self.settings.value('cur_project_name', '')
+        # self.rt_settings['cur_project_path'] = self.settings.value('cur_project_path', '')
+        # self.rt_settings['cur_target_script'] = self.settings.value('cur_target_script', '')
+        # self.rt_settings['baud_rate'] = self.settings.value('baudrate', '115200')
 
         self.TargetFileList = []
 
         # set up the non-persistent system settings
-        print('os name= ' + self.rt_settings['os_name'])     # find name of os, 'linux', 'windows', etc
-        print('project path= ' + self.rt_settings['cur_project_path'])
-        print('app path= ' + self.rt_settings['app_path'])
+        print('os name= ' + self.settings.value('OS_NAME', ''))     # find name of os, 'linux', 'windows', etc
+        print('project path= ' + self.settings.value('CUR_PROJECT_PATH', ''))
+        print('app path= ' + self.settings.value('APP_PATH', ''))
 
         self.extProc = QProcess()       # used to start external programs
         self.tabsList = QTabWidget()
@@ -260,7 +264,7 @@ class pyEditor(QMainWindow):
 
         self.cursor = QTextCursor()
         self.wordList = []
-        self.statusBar().showMessage(self.rt_settings['app_path'])
+        self.statusBar().showMessage(self.settings.value('APP_PATH', ''))
         self.lineLabel = QLabel("line")
         self.statusBar().addPermanentWidget(self.lineLabel)
         self.windowList = []
@@ -271,29 +275,26 @@ class pyEditor(QMainWindow):
 
         # create the QSerialPort widget
         self.serialport = QSerialPort(self)
-        self.rt_settings['serial_port'] = self.settings.value('comportname', '')
-        self.serialport.setPortName(self.rt_settings['serial_port'])
+        self.serialport.setPortName(self.settings.value('SERIAL_PORT', '/dev/ttyUSB0'))
 
-        # Create the project files viewer
+        # Create the project files viewer derived from QTreeWidget
         self.projectFileViewer = fileViewer()
         self.projectFileViewer.setStyleSheet(stylesheet2(self))
-        self.projectFileViewer.setHeaderItem(QTreeWidgetItem([" Project Files"]))
+        proj_name = self.settings.value('CUR_PROJECT_NAME', '')
+        if self.isProjectValid(proj_name):
+            proj_name = 'Project: ' + proj_name
+        else:
+            proj_name = 'Project: None'
+            self.settings.setValue('CUR_PROJECT_NAME', '')
+        self.projectFileViewer.setHeaderItem(QTreeWidgetItem([proj_name]))
         self.projectFileViewer.setColumnCount(1)
         self.projectFileViewer.itemDoubleClicked.connect(self.projectFileViewerDblClicked)
         self.projectFileViewer.setContextMenuPolicy(Qt.CustomContextMenu)
         self.projectFileViewer.customContextMenuRequested.connect(self.projectViewerContextMenu)
 
-        # load project file viewer
-        self.showDirectoryTree(self.rt_settings['app_path'])
-
-        # create file browser back/forward bar
-        self.projectFileNavBar = QFrame()
-        self.projLayout = QHBoxLayout()
-        self.backbutton = QPushButton("Back")
-        self.forwardbutton = QPushButton("Fwd")
-        self.projLayout.addWidget(self.backbutton)
-        self.projLayout.addWidget(self.forwardbutton)
-        self.projectFileNavBar.setLayout(self.projLayout)
+        # Populate the Project file viewer
+        self.showDirectoryTree(self.settings.value('CUR_PROJECT_PATH', ''))
+        self.projectFileViewer.expandAll()
 
         # Create the Target file viewer
         self.targetFileViewer = fileViewer()
@@ -301,7 +302,7 @@ class pyEditor(QMainWindow):
         self.targetFileViewer.setHeaderItem(QTreeWidgetItem([" Target Files"]))
         self.targetFileViewer.setColumnCount(1)
 
-        targ1 = QTreeWidgetItem([self.rt_settings['serial_port']])
+        targ1 = QTreeWidgetItem([self.settings.value('SERIAL_PORT', '')])
         self.targetFileViewer.addTopLevelItem(targ1)
         self.targetFileViewer.expandAll()
         self.targetFileViewer.itemDoubleClicked.connect(self.targetFileViewerDblClicked)
@@ -322,10 +323,6 @@ class pyEditor(QMainWindow):
         self.shellText.setReadOnly(False)
         self.shellText.installEventFilter(self)
 
-        # Create an Icon on the System Tray (not currently implemented)
-        # self.createTrayIcon()
-        # self.trayIcon.show()
-
         # statusbar
         self.statusBar()
         self.statusBar().setStyleSheet(stylesheet2(self))
@@ -340,47 +337,117 @@ class pyEditor(QMainWindow):
         tb.setAllowedAreas(Qt.AllToolBarAreas)
         tb.setFloatable(True)
 
-        ### file buttons
-        self.newAct = QAction("&New File", self, shortcut=QKeySequence.New, triggered=self.newFile)
-        self.newAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/new24"))
-        tb.addAction(self.newAct)
+        ### Create action button objects used by menus and toolbars ###
+        self.newProjectAct = QAction("&Create New Project", self, shortcut=QKeySequence.New, triggered=self.createNewProject)
+        self.newProjectAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/new_project"))
 
-        self.openAct = QAction("&Open File", self, shortcut=QKeySequence.Open,  triggered=self.openFile)
-        self.openAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/open24"))
-        tb.addAction(self.openAct)
+        self.openProjectAct = QAction("&Open Existing Project", self, shortcut=QKeySequence.New, triggered=self.openExistingProject)
+        self.openProjectAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/open_project"))
 
-        self.saveAct = QAction("&Save File", self, shortcut=QKeySequence.Save, triggered=self.fileSave)
-        self.saveAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/floppy24"))
-        tb.addAction(self.saveAct)
+        self.closeProjectAct = QAction("&Close Current Project", self, shortcut=QKeySequence.New, triggered=self.closeCurrentProject)
+        self.closeProjectAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/close_project"))
 
-        self.saveAsAct = QAction("&Save File as...", self, shortcut=QKeySequence.SaveAs, triggered=self.fileSaveAs)
-        self.saveAsAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/floppy25"))
-        tb.addAction(self.saveAsAct)
+        self.newFileAct = QAction("&New File", self, shortcut=QKeySequence.New, triggered=self.newFile)
+        self.newFileAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/new24"))
+
+        self.openFileAct = QAction("&Open File", self, shortcut=QKeySequence.Open,  triggered=self.openFile)
+        self.openFileAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/open24"))
+
+        self.saveFileAct = QAction("&Save File", self, shortcut=QKeySequence.Save, triggered=self.fileSave)
+        self.saveFileAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/floppy24"))
+
+        self.saveFileAsAct = QAction("&Save File as...", self, shortcut=QKeySequence.SaveAs, triggered=self.fileSaveAs)
+        self.saveFileAsAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/floppy25"))
 
         self.jumpToAct = QAction("Go to Definition (F12)", self, shortcut="F12", triggered=self.gotoBookmarkFromMenu)
         self.jumpToAct.setIcon(QIcon.fromTheme("go-next"))
 
-        ### comment buttons
-        tb.addSeparator()
         self.commentAct = QAction("#Comment Line (F2)", self, shortcut="F2", triggered=self.commentLine)
-        self.commentAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/comment"))
-        tb.addAction(self.commentAct)
+        self.commentAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/comment"))
 
         self.uncommentAct = QAction("Uncomment Line (F3)", self, shortcut="F3", triggered=self.uncommentLine)
-        self.uncommentAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/uncomment"))
-        tb.addAction(self.uncommentAct)
+        self.uncommentAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/uncomment"))
 
         self.commentBlockAct = QAction("Comment Block (F6)", self, shortcut="F6", triggered=self.commentBlock)
-        self.commentBlockAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/commentBlock"))
-        tb.addAction(self.commentBlockAct)
+        self.commentBlockAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/commentBlock"))
 
         self.uncommentBlockAct = QAction("Uncomment Block (F7)", self, shortcut="F7", triggered=self.uncommentBlock)
-        self.uncommentBlockAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/uncommentBlock"))
+        self.uncommentBlockAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/uncommentBlock"))
+
+        self.printPreviewAct = QAction("Print Preview (Ctl+Shf+P)", self, shortcut="Ctrl+Shift+P", triggered=self.handlePrintPreview)
+        self.printPreviewAct.setIcon(QIcon.fromTheme("document-print-preview"))
+
+        self.printAct = QAction("Print", self, shortcut=QKeySequence.Print, triggered=self.handlePrint)
+        self.printAct.setIcon(QIcon.fromTheme("document-print"))
+
+        self.exitAct = QAction("Exit", self, shortcut=QKeySequence.Quit, triggered=self.handleQuit)
+        self.exitAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/quit"))
+
+        self.indentAct = QAction(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/indent"), "Indent more", self,
+                                 triggered=self.indentLine, shortcut="F8")
+
+        self.indentLessAct = QAction(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/unindent"), "Indent less", self,
+                                     triggered=self.unindentLine, shortcut="F9")
+
+        self.bookAct = QAction("Add Bookmark", self, triggered=self.addBookmark)
+        self.bookAct.setIcon(QIcon.fromTheme("previous"))
+
+        self.bookrefresh = QAction("Update Bookmarks", self, triggered=self.findBookmarks)
+        self.bookrefresh.setIcon(QIcon.fromTheme("view-refresh"))
+
+        self.clearRecentAct = QAction("clear Recent Files List", self, triggered=self.clearRecentFiles)
+        self.clearRecentAct.setIcon(QIcon.fromTheme("edit-clear"))
+
+        self.zealAct = QAction("&Zeal Developer Help", self, shortcut='ctrl+h', triggered=self.showZeal)
+        self.zealAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/zeal"))
+
+        self.resetTargetAct = QAction("&Reset Target", self, shortcut='', triggered=self.resetTargetDevice)
+        self.resetTargetAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/restart"))
+
+        self.runScriptAct = QAction("&Run Script on Target", self, shortcut='', triggered=self.runTargetScript)
+        self.runScriptAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/run"))
+
+        self.stopScriptAct = QAction("&Stop Target Script", self, shortcut='', triggered=self.stopTargetScript)
+        self.stopScriptAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/stop"))
+
+        self.downloadScriptAct = QAction("&Download File to Target", self, shortcut='', triggered=self.downloadScript)
+        self.downloadScriptAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/download"))
+
+        self.uploadScriptAct = QAction("&Upload File from Target", self, shortcut='', triggered=self.uploadScript)
+        self.uploadScriptAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/upload"))
+
+        self.removeScriptAct = QAction("&Remove File from Target", self, shortcut='', triggered=self.removeScript)
+        self.removeScriptAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/delete"))
+
+        self.newFolderAct = QAction("&New Target Folder", self, shortcut='', triggered=self.newTargetFolder)
+        self.newFolderAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/folder"))
+
+        self.delFolderAct = QAction("&Remove Target Folder", self, shortcut='', triggered=self.rmTargetFolder)
+        self.delFolderAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/folder_del"))
+
+        ### file buttons
+        tb.addAction(self.newProjectAct)
+        tb.addAction(self.openProjectAct)
+        tb.addAction(self.closeProjectAct)
+        tb.addSeparator()
+        tb.addSeparator()
+        tb.addAction(self.newFileAct)
+        tb.addAction(self.openFileAct)
+        tb.addAction(self.saveFileAct)
+        tb.addAction(self.saveFileAsAct)
+        tb.addSeparator()
+        tb.addSeparator()
+
+        ### comment buttons
+        tb.addSeparator()
+        tb.addAction(self.commentAct)
+        tb.addAction(self.uncommentAct)
+        tb.addAction(self.commentBlockAct)
         tb.addAction(self.uncommentBlockAct)
 
         ### color chooser
         tb.addSeparator()
-        tb.addAction(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/color1"), "insert QColor", self.insertColor)
+        tb.addAction(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/color1"), "insert QColor", self.insertColor)
         tb.addSeparator()
         tb.addAction(QIcon.fromTheme("preferences-color"), "Insert Color Hex Value", self.changeColor)
 
@@ -395,35 +462,31 @@ class pyEditor(QMainWindow):
 
         ### path python buttons
         tb.addSeparator()
-        tb.addAction(QIcon.fromTheme("edit-clear"), "clear Output Label", self.clearLabel)
+        # tb.addAction(QIcon.fromTheme("edit-clear"), "clear Shell Terminal", self.clearLabel)
         tb.addSeparator()
+
         ### print preview
-        self.printPreviewAct = QAction("Print Preview (Ctl+Shf+P)", self, shortcut="Ctrl+Shift+P", triggered=self.handlePrintPreview)
-        self.printPreviewAct.setIcon(QIcon.fromTheme("document-print-preview"))
         tb.addAction(self.printPreviewAct)
+
         ### print
-        self.printAct = QAction("Print", self, shortcut=QKeySequence.Print, triggered=self.handlePrint)
-        self.printAct.setIcon(QIcon.fromTheme("document-print"))
         tb.addAction(self.printAct)
+
         ### Help (Zeal) button
         tb.addSeparator()
-        tb.addAction(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/zeal"), "&Zeal Developer Help", self.showZeal)
+        tb.addAction(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/zeal"), "&Zeal Developer Help", self.showZeal)
         tb.addSeparator()
+
         ### about buttons
-        tb.addAction(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/info2"), "&About microPy", self.about)
+        tb.addAction(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/info2"), "&About microPy", self.about)
         tb.addSeparator()
         tb.addSeparator()
         tb.addSeparator()
         tb.addSeparator()
+
         ### exit button
-        self.exitAct = QAction("Exit", self, shortcut=QKeySequence.Quit, triggered=self.handleQuit)
-        self.exitAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/quit"))
         tb.addAction(self.exitAct)
+
         ### end toolbar
-        self.indentAct = QAction(QIcon.fromTheme(self.rt_settings['app_path']+ "/icons/indent"), "Indent more", self,
-                                 triggered=self.indentLine, shortcut="F8")
-        self.indentLessAct = QAction(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/unindent"), "Indent less", self,
-                                     triggered=self.unindentLine, shortcut="F9")
 
         ### find / replace toolbar
         self.addToolBarBreak()
@@ -481,14 +544,9 @@ class pyEditor(QMainWindow):
         self.bookmarks.setToolTip("go to bookmark")
         self.bookmarks.activated[str].connect(self.gotoBookmark)
         tbf.addWidget(self.bookmarks)
-
-        self.bookAct = QAction("Add Bookmark", self, triggered=self.addBookmark)
-        self.bookAct.setIcon(QIcon.fromTheme("previous"))
         tbf.addAction(self.bookAct)
 
         tbf.addSeparator()
-        self.bookrefresh = QAction("Update Bookmarks", self, triggered=self.findBookmarks)
-        self.bookrefresh.setIcon(QIcon.fromTheme("view-refresh"))
         tbf.addAction(self.bookrefresh)
         tbf.addAction(QAction(QIcon.fromTheme("document-properties"), "Check && Reindent Text", self,
                               triggered=self.reindentText))
@@ -498,26 +556,19 @@ class pyEditor(QMainWindow):
         self.filemenu = bar.addMenu("File")
         self.filemenu.setStyleSheet(stylesheet2(self))
         self.separatorAct = self.filemenu.addSeparator()
-        # Create new project
-        self.newProjectAct = QAction("New Project", self, triggered=self.createNewProject)
-        self.newProjectAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + '/icons/new_project'))
-        self.filemenu.addAction(self.newProjectAct)
-        # Open existing project
-        self.openProjectAct = QAction("Open Project", self, triggered=self.openExistingProject)
-        self.openProjectAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + '/icons/open_project'))
-        self.filemenu.addAction(self.openProjectAct)
 
-        self.filemenu.addAction(self.newAct)
-        self.filemenu.addAction(self.openAct)
-        self.filemenu.addAction(self.saveAct)
-        self.filemenu.addAction(self.saveAsAct)
+        self.filemenu.addAction(self.newProjectAct)
+        self.filemenu.addAction(self.openProjectAct)
+        self.filemenu.addAction(self.closeProjectAct)
+        self.filemenu.addAction(self.newFileAct)
+        self.filemenu.addAction(self.openFileAct)
+        self.filemenu.addAction(self.saveFileAct)
+        self.filemenu.addAction(self.saveFileAsAct)
         self.filemenu.addSeparator()
         # for i in range(self.rt_settings['max_recent_files']):
         #    self.filemenu.addAction(self.recentFileActs[i])
         self.updateRecentFileActions()
         self.filemenu.addSeparator()
-        self.clearRecentAct = QAction("clear Recent Files List", self, triggered=self.clearRecentFiles)
-        self.clearRecentAct.setIcon(QIcon.fromTheme("edit-clear"))
         self.filemenu.addAction(self.clearRecentAct)
         self.filemenu.addSeparator()
         self.filemenu.addAction(self.exitAct)
@@ -559,9 +610,8 @@ class pyEditor(QMainWindow):
         self.helpmenu = bar.addMenu("Help")
         self.helpmenu.setStyleSheet(stylesheet2(self))
         self.separatorAct = self.helpmenu.addSeparator()
+
         ### Zeal button
-        self.zealAct = QAction("&Zeal Developer Help", self, shortcut='ctrl+h', triggered=self.showZeal)
-        self.zealAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/zeal"))
         self.helpmenu.addAction(self.zealAct)
         self.helpmenu.addSeparator()
 
@@ -581,11 +631,11 @@ class pyEditor(QMainWindow):
         ### Serial Port line editor widget
         self.comportfield = QLineEdit()
         self.comportfield.setStyleSheet(stylesheet2(self))
-        self.comportfield.addAction(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/connect"), QLineEdit.LeadingPosition)
+        self.comportfield.addAction(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/connect"), QLineEdit.LeadingPosition)
         self.comportfield.setClearButtonEnabled(True)
         self.comportfield.setFixedWidth(150)
-        if self.rt_settings['serial_port']:
-            self.comportfield.setText(self.rt_settings['serial_port'])
+        if self.settings.value('SERIAL_PORT', ''):
+            self.comportfield.setText(self.settings.value('SERIAL_PORT', ''))
         else:
             self.comportfield.setPlaceholderText("serial com port")
         self.comportfield.setToolTip("Serial Port Name")
@@ -604,64 +654,45 @@ class pyEditor(QMainWindow):
 
         ### RESET Target Button
         mptb.addSeparator()
-        self.resetTargetAct = QAction("&Reset Target", self, shortcut='', triggered=self.resetTargetDevice)
-        self.resetTargetAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/restart"))
         mptb.addAction(self.resetTargetAct)
 
         ### Run Script Button
         mptb.addSeparator()
-        self.runScriptAct = QAction("&Run Script on Target", self, shortcut='', triggered=self.runTargetScript)
-        self.runScriptAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/run"))
         mptb.addAction(self.runScriptAct)
         
         ### Stop Script Button
         mptb.addSeparator()
-        self.stopScriptAct = QAction("&Stop Target Script", self, shortcut='', triggered=self.stopTargetScript)
-        self.stopScriptAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/stop"))
         mptb.addAction(self.stopScriptAct)
 
         ### Download File to Target Button
         mptb.addSeparator()
-        self.downloadScriptAct = QAction("&Download File to Target", self, shortcut='', triggered=self.downloadScript)
-        self.downloadScriptAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/download"))
         mptb.addAction(self.downloadScriptAct)
 
         ### Upload File from Target Button
         mptb.addSeparator()
-        self.uploadScriptAct = QAction("&Upload File from Target", self, shortcut='', triggered=self.uploadScript)
-        self.uploadScriptAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/upload"))
         mptb.addAction(self.uploadScriptAct)
 
         ### Remove Target File Button
         mptb.addSeparator()
-        self.removeScriptAct = QAction("&Remove File from Target", self, shortcut='', triggered=self.removeScript)
-        self.removeScriptAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/delete"))
         mptb.addAction(self.removeScriptAct)
 
         ### New Target Folder Button
         mptb.addSeparator()
-        self.newFolderAct = QAction("&New Target Folder", self, shortcut='', triggered=self.newTargetFolder)
-        self.newFolderAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/folder"))
         mptb.addAction(self.newFolderAct)
 
         ### Delete Target Folder Button
         mptb.addSeparator()
-        self.delFolderAct = QAction("&Remove Target Folder", self, shortcut='', triggered=self.rmTargetFolder)
-        self.delFolderAct.setIcon(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/folder_del"))
         mptb.addAction(self.delFolderAct)
 
-        #*** Layout widgets on the main page
+        ### Clear shell terminal output
+        mptb.addSeparator()
+        mptb.addSeparator()
+        mptb.addSeparator()
+        mptb.addAction(QIcon.fromTheme("edit-clear"), "clear Shell Terminal", self.clearLabel)
+
+        #*** Layout widgets on the main page ***#
         #*** LEFT Horiz Layout - Fileviewer's
         self.lvSplitter = QSplitter(Qt.Vertical)
-
-        # self.projFileLayout = QVBoxLayout()
-        # self.projFileLayout.addWidget(self.projectFileNavBar)
-        # self.projFileLayout.addWidget(self.projectFileViewer)
-        # self.projFileWidget = QWidget()
-        # self.projFileWidget.setLayout(self.projFileLayout)
-        # self.lvSplitter.addWidget(self.projFileWidget)
-
-
         self.lvSplitter.addWidget(self.projectFileViewer)
         self.lvSplitter.addWidget(self.targetFileViewer)
         self.lvSplitter.setStretchFactor(0, 2)
@@ -669,7 +700,7 @@ class pyEditor(QMainWindow):
         self.lvSplitter.setHandleWidth(10);
         self.left_layout = QHBoxLayout()
         self.left_layout.setContentsMargins(0, 8, 2, 8)
-        self.left_layout.addWidget(self.lvSplitter)     #self.projectFileViewer)
+        self.left_layout.addWidget(self.lvSplitter)
         self.left_widget = QWidget()
         self.left_widget.setLayout(self.left_layout)
 
@@ -744,23 +775,28 @@ class pyEditor(QMainWindow):
 
         self.loadTemplates()
         self.readSettings()
-        self.statusBar().showMessage("Application Path: " + self.rt_settings['app_path'], 0)
+        self.statusBar().showMessage("Application Path: " + self.settings.value('APP_PATH', ''), 0)
 
-        baud = self.rt_settings['baud_rate']
-        indx = self.baudrates.findText(baud)
-        self.baudrates.setCurrentIndex(indx)
-        self.serialport.setBaudRate(int(baud))
-        if self.serialport.open(QIODevice.ReadWrite):
-            self.serialport.setFlowControl(QSerialPort.HardwareControl)
-            self.serialport.readyRead.connect(self.serial_read_bytes)
-            self.shellText.clear()
-            self.shellText.setText('Serial port ' + self.rt_settings['serial_port'] + ' is connected to Target.')
-        else:
-            self.shellText.clear()
-            self.shellText.setText('Unable to open Serial port ' + self.rt_settings['serial_port'])
+        baud = self.settings.value('BAUD_RATE', '')
+        if len(baud) > 0:
+            indx = self.baudrates.findText(baud)
+            self.baudrates.setCurrentIndex(indx)
+            self.serialport.setBaudRate(int(baud))
+            if self.serialport.open(QIODevice.ReadWrite):
+                self.serialport.setFlowControl(QSerialPort.HardwareControl)
+                self.serialport.readyRead.connect(self.serial_read_bytes)
+                self.shellText.clear()
+                self.shellText.setText('Serial port ' + self.settings.value('SERIAL_PORT', '') + ' is connected to Target.')
+            else:
+                self.shellText.clear()
+                self.shellText.setText('Unable to open Serial port ' + self.settings.value('SERIAL_PORT', ''))
+
+    def isProjectValid(self, proj_name):
+        path = self.settings.value('CUR_PROJECT_PATH', '') + '/' + proj_name
+        return os.path.isdir(path)
 
     def getDirectory(self):
-        gdir_dialog = QFileDialog(self, 'Select Directory', self.rt_settings['app_path'], None)
+        gdir_dialog = QFileDialog(self, 'Select Directory', self.settings.value('APP_PATH', ''), None)
         gdir_dialog.setFileMode(QFileDialog.DirectoryOnly)
         #dialog.setSidebarUrls([QtCore.QUrl.fromLocalFile(place)])
         if gdir_dialog.exec_() == QDialog.Accepted:
@@ -769,53 +805,123 @@ class pyEditor(QMainWindow):
 
     # Show folders & files in the 'path' directory to the projectFileViewer tree widget
     def showDirectoryTree(self, curpath):
-        #style = QApplication.style()
         self.projectFileViewer.clear()
-        dirfiles = os.listdir(curpath)
-        fullpaths = map(lambda name: os.path.join(curpath, name), dirfiles)
-        head, tail = ntpath.split(curpath)
-        tldir = tail or ntpath.basename(head)
-        #print('tldir=' + tldir)
-        l1 = QTreeWidgetItem([tldir])
-        l1.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/folder_open"))
+        if len(self.settings.value('CUR_PROJECT_NAME', '')) == 0:
+            return
 
-        dirs = []
-        files = []
+        self.load_project_tree(curpath, self.projectFileViewer)
+        self.projectFileViewer.setItemsExpandable(True)
 
-        for file in fullpaths:
-            if os.path.isdir(file):
-                head, tail = ntpath.split(file)
-                file = tail or ntpath.basename(head)
-                dirs.append(file)
-            elif os.path.isfile(file):
-                head, tail = ntpath.split(file)
-                file = tail or ntpath.basename(head)
-                files.append(file)
+    # recursive function to display directory contnts in projectFileViewer
+    def load_project_tree(self, startpath, tree):
+        for element in os.listdir(startpath):
+            path_info = os.path.join(startpath, element)
+            parent_itm = QTreeWidgetItem(tree, [os.path.basename(element)])
+            parent_itm.setData(0, Qt.UserRole, path_info)
+            if os.path.isdir(path_info):
+                self.load_project_tree(path_info, parent_itm)
+                parent_itm.setIcon(0, QIcon(self.settings.value('APP_PATH', '') + '/icons/folder_closed'))
+            else:
+                parent_itm.setIcon(0, QIcon(self.settings.value('APP_PATH', '') + '/icons/file'))
 
-        # display directories on top
-        for ndir in dirs:
-            l1_child = QTreeWidgetItem(['/' + ndir])
-            l1_child.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/folder_closed"))
-            l1.addChild(l1_child)
-
-        # display files on bottom
-        for nfile in files:
-            l1_child = QTreeWidgetItem([nfile])
-            l1_child.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/file"))
-            l1.addChild(l1_child)
-
-        self.projectFileViewer.addTopLevelItem(l1)
-        self.projectFileViewer.expandAll()
-        self.projectFileViewer.setItemsExpandable(False)
-
-        # print(list(dirs))
-        # print(list(files))
-
+        # self.projectFileViewer.clear()
+        # dirfiles = os.listdir(curpath)
+        # fullpaths = map(lambda name: os.path.join(curpath, name), dirfiles)
+        # head, tail = ntpath.split(curpath)
+        # tldir = tail or ntpath.basename(head)
+        # #print('tldir=' + tldir)
+        # l1 = QTreeWidgetItem([tldir])
+        # l1.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/folder_open"))
+        #
+        # dirs = []
+        # files = []
+        #
+        # for file in fullpaths:
+        #     if os.path.isdir(file):
+        #         head, tail = ntpath.split(file)
+        #         file = tail or ntpath.basename(head)
+        #         dirs.append(file)
+        #     elif os.path.isfile(file):
+        #         head, tail = ntpath.split(file)
+        #         file = tail or ntpath.basename(head)
+        #         files.append(file)
+        #
+        # # display directories on top
+        # for ndir in dirs:
+        #     l1_child = QTreeWidgetItem(['/' + ndir])
+        #     icd = QIcon(self.rt_settings['app_path'] + "/icons/folder_closed")
+        #     l1_child.setIcon(0, icd)
+        #     l1.addChild(l1_child)
+        #
+        # # display files on bottom
+        # for nfile in files:
+        #     l1_child = QTreeWidgetItem([nfile])
+        #     icf = QIcon(self.rt_settings['app_path'] + "/icons/file")
+        #     l1_child.setIcon(0, icf)
+        #     l1.addChild(l1_child)
+        #
+        # self.projectFileViewer.addTopLevelItem(l1)
+        # self.projectFileViewer.expand(0)
+        # self.projectFileViewer.expandAll()
+        # self.projectFileViewer.setItemsExpandable(False)
 
     def createNewProject(self):
-        return
+        self.new_proj = 'untitled'
+        self.np_dialog = QDialog()
+        self.np_dialog.setWindowTitle('Enter New Project Name')
+        QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+
+        buttonBox = QDialogButtonBox(QBtn)
+        buttonBox.accepted.connect(self.new_proj_accept)
+        buttonBox.rejected.connect(self.new_proj_reject)
+
+        self.np_dialog.layout = QVBoxLayout()
+        self.projedit = QLineEdit()
+        self.projedit.setPlaceholderText('new project name')
+        self.np_dialog.layout.addWidget(self.projedit)
+        self.np_dialog.layout.addWidget(buttonBox)
+        self.np_dialog.setLayout(self.np_dialog.layout)
+        self.np_dialog.setFixedWidth(400)
+        self.np_dialog.exec()
+
+        # new project accepted?
+        if self.new_proj == 'rejected':   # exit if project rejected
+            return
+        # check if the project name already exists
+        dup_proj_name = False
+        proj_path = self.settings.value('APP_PATH', '') + '/projects'
+        for folder in os.listdir(proj_path):
+            if os.path.isdir(proj_path):
+                if folder.lower() == self.new_proj.lower():
+                    dup_proj_name = True
+                    break
+
+        if not dup_proj_name:
+            self.settings.setValue('CUR_PROJECT_PATH', proj_path + '/' + self.new_proj)
+            self.settings.setValue('CUR_PROJECT_NAME', self.new_proj)
+            os.mkdir(self.settings.value('CUR_PROJECT_PATH', ''))
+            os.chdir(self.settings.value('CUR_PROJECT_PATH', ''))
+            self.statusBar().showMessage("New Project (" + self.new_proj + ") created.")
+            self.showDirectoryTree(self.settings.value('CUR_PROJECT_PATH', ''))
+
+        # self.bookmarks.clear()
+        # self.setWindowTitle('new File[*]')
+
+    def new_proj_accept(self):
+        self.new_proj = self.projedit.text()
+        self.np_dialog.close()
+
+    def new_proj_reject(self):
+        self.new_proj = 'rejected'
+        self.np_dialog.close()
 
     def openExistingProject(self):
+        proj_path = self.settings.value('APP_PATH', '') + '/projects'
+        os.chdir(proj_path)
+        for folder in os.listdir(proj_path):
+            print(folder)
+
+    def closeCurrentProject(self):
         return
 
     # Function to display context menu on the target file viewer
@@ -823,42 +929,42 @@ class pyEditor(QMainWindow):
         tv_menu = QMenu(self.targetFileViewer)
         tv_menu.addSection('TARGET ACTIONS:')
         tv_act1 = QAction("Reset Target")
-        tv_act1.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/reset"))
+        tv_act1.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/reset"))
         tv_act1.setIconVisibleInMenu(True)
         tv_act1.triggered.connect(self.resetTargetDevice)
         tv_menu.addAction(tv_act1)
         tv_act2 = QAction("Run Script on Target")
-        tv_act2.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/run"))
+        tv_act2.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/run"))
         tv_act2.setIconVisibleInMenu(True)
         tv_act2.triggered.connect(self.runTargetScript)
         tv_menu.addAction(tv_act2)
         tv_act3 = QAction("Stop Target Script")
-        tv_act3.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/stop"))
+        tv_act3.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/stop"))
         tv_act3.setIconVisibleInMenu(True)
         tv_act3.triggered.connect(self.stopTargetScript)
         tv_menu.addAction(tv_act3)
         tv_act4 = QAction("Download File to Target")
-        tv_act4.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/download"))
+        tv_act4.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/download"))
         tv_act4.setIconVisibleInMenu(True)
         tv_act4.triggered.connect(self.downloadScript)
         tv_menu.addAction(tv_act4)
         tv_act5 = QAction("Upload File from Target")
-        tv_act5.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/upload"))
+        tv_act5.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/upload"))
         tv_act5.setIconVisibleInMenu(True)
         tv_act5.triggered.connect(self.uploadScript)
         tv_menu.addAction(tv_act5)
         tv_act6 = QAction("Remove File from Target")
-        tv_act6.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/delete"))
+        tv_act6.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/delete"))
         tv_act6.setIconVisibleInMenu(True)
         tv_act6.triggered.connect(self.removeScript)
         tv_menu.addAction(tv_act6)
         tv_act7 = QAction("New Target Folder")
-        tv_act7.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/folder"))
+        tv_act7.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/folder"))
         tv_act7.setIconVisibleInMenu(True)
         tv_act7.triggered.connect(self.newTargetFolder)
         tv_menu.addAction(tv_act7)
         tv_act8 = QAction("Remove Target Folder")
-        tv_act8.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/folder_del"))
+        tv_act8.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/folder_del"))
         tv_act8.setIconVisibleInMenu(True)
         tv_act8.triggered.connect(self.newTargetFolder)
         tv_menu.addAction(tv_act8)
@@ -871,50 +977,50 @@ class pyEditor(QMainWindow):
         pv_menu.addSection('PROJECT ACTIONS:')
 
         pv_act1 = QAction("Back")
-        pv_act1.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/unindent"))
+        pv_act1.setIcon(QIcon(self.self.settings.value('APP_PATH', '') + "/icons/unindent"))
         pv_act1.setIconVisibleInMenu(True)
         pv_act1.triggered.connect(self.backUpOneDirectory)
         pv_menu.addAction(pv_act1)
 
         pv_act2 = QAction("Change Project Directory")
-        pv_act2.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/folder_open"))
+        pv_act2.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/folder_open"))
         pv_act2.setIconVisibleInMenu(True)
         pv_act2.triggered.connect(self.getDirectory)
         pv_menu.addAction(pv_act2)
 
         pv_act3 = QAction("New Project File")
-        pv_act3.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/new24"))
+        pv_act3.setIcon(QIcon(self.self.settings.value('APP_PATH', '') + "/icons/new24"))
         pv_act3.setIconVisibleInMenu(True)
         pv_act3.triggered.connect(self.newFile)
         pv_menu.addAction(pv_act3)
 
         # pv_act3 = QAction("Stop Target Script")
-        # pv_act3.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/stop"))
+        # pv_act3.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/stop"))
         # pv_act3.setIconVisibleInMenu(True)
         # pv_act3.triggered.connect(self.stopTargetScript)
         # pv_menu.addAction(pv_act3)
         # pv_act4 = QAction("Download File to Target")
-        # pv_act4.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/download"))
+        # pv_act4.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/download"))
         # pv_act4.setIconVisibleInMenu(True)
         # pv_act4.triggered.connect(self.downloadScript)
         # pv_menu.addAction(pv_act4)
         # pv_act5 = QAction("Upload File from Target")
-        # pv_act5.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/upload"))
+        # pv_act5.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/upload"))
         # pv_act5.setIconVisibleInMenu(True)
         # pv_act5.triggered.connect(self.uploadScript)
         # pv_menu.addAction(pv_act5)
         # pv_act6 = QAction("Remove File from Target")
-        # pv_act6.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/delete"))
+        # pv_act6.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/delete"))
         # pv_act6.setIconVisibleInMenu(True)
         # pv_act6.triggered.connect(self.removeScript)
         # pv_menu.addAction(pv_act6)
         # pv_act7 = QAction("New Target Folder")
-        # pv_act7.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/folder"))
+        # pv_act7.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/folder"))
         # pv_act7.setIconVisibleInMenu(True)
         # pv_act7.triggered.connect(self.newTargetFolder)
         # pv_menu.addAction(pv_act7)
         # pv_act8 = QAction("Remove Target Folder")
-        # pv_act8.setIcon(QIcon(self.rt_settings['app_path'] + "/icons/folder_del"))
+        # pv_act8.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/folder_del"))
         # pv_act8.setIconVisibleInMenu(True)
         # pv_act8.triggered.connect(self.newTargetFolder)
         # pv_menu.addAction(pv_act8)
@@ -922,7 +1028,16 @@ class pyEditor(QMainWindow):
         pv_menu.exec(self.projectFileViewer.mapToGlobal(position))
 
     def backUpOneDirectory(self):
-        return
+        path = os.getcwd().split('/', 20)
+        print(path)
+        newpath = ''
+        for i in range(len(path) - 1):
+            if path[i]:
+                newpath += ('/' + path[i])
+
+        print(newpath)
+        os.chdir(newpath)
+        self.showDirectoryTree(newpath)
 
     # the action executed when menu is clicked
     def display_selection(self):
@@ -1013,7 +1128,7 @@ class pyEditor(QMainWindow):
 
     # text in the editor of the current selected tab has changed
     def onTextHasChanged(self):
-        if self.rt_settings['ignore_text_changed']:
+        if self.settings.value('IGNORE_TEXT_CHANGED', '') == 'True':
             return
         else:
             self.setModified(True)
@@ -1033,7 +1148,7 @@ class pyEditor(QMainWindow):
         if event.type() == QEvent.KeyPress and obj is self.shellText:
             if self.shellText.hasFocus():
                 if event.key() == Qt.Key_Return:
-                    self.rt_settings['block_cr'] = True
+                    self.settings.setValue('BLOCK_CR', 'True')
                     self.serialport.write(b'\x0D')   # CR
                 elif event.key() == Qt.Key_Backspace:
                     self.serialport.write(b'\x08')
@@ -1041,21 +1156,21 @@ class pyEditor(QMainWindow):
                     print(event.key())
                     self.serialport.write(b'\x2191')
                 else:
-                    self.rt_settings['block_echo'] = True
+                    self.settings.setValue('BLOCK_ECHO', 'True')
                     self.serialport.writeData(bytes(event.text(), 'utf-8'))
         return super().eventFilter(obj, event)
 
     def projectFileViewerDblClicked(self, index):
-        item = self.projectFileViewer.currentItem().text(0)
-        if item.startswith('/'):
-            self.showDirectoryTree(os.getcwd() + item)
+        item_text = self.projectFileViewer.currentItem().text(0)
+        if item_text == '/':
+            self.showDirectoryTree(os.getcwd() + item_text)
             print('cur dir=' + os.getcwd())
-        print(item)
+        print(item_text)
 
     def targetFileViewerDblClicked(self, index):
         titem = self.targetFileViewer.currentItem().text(0)
         # ignore dbl click on serial port name
-        if titem != self.rt_settings['serial_port']:
+        if titem != self.settings.value('SERIAL_PORT', ''):
             print(titem)
 
     # Reset ESP32 target device by asserting DTR
@@ -1063,13 +1178,14 @@ class pyEditor(QMainWindow):
         self.serialport.setDataTerminalReady(False)
         time.sleep(0.1)
         self.serialport.setDataTerminalReady(True)
-        self.rt_settings['ignore_serial_after_reset'] = True      # ignore bytes from target MCU after reset
+        self.shellText.append('Reset Target.\n')
+        self.settings.setValue('IGNORE_SERIAL_AFTER_RESET', 'True')      # ignore bytes from target MCU after reset
 
     def viewTargetFiles(self):
-        proc = 'ampy -p ' + self.rt_settings['serial_port']
-        proc += ' -b ' + self.rt_settings['baud_rate']  # add baudrate
+        proc = 'ampy -p ' + self.settings.value('SERIAL_PORT', '')
+        proc += ' -b ' + self.settings.value('BAUD_RATE', '')  # add baudrate
         proc += ' ls'
-        self.rt_settings['list_target_files'] = True    # direct listed files into the Target Files viewer
+        self.settings.setValue('LIST_TARGET_FILES', 'True')    # direct listed files into the Target Files viewer
         self.startProcess(proc)
 
     # Start external process. procCmdStr has the name of the external proc and its arguments
@@ -1098,13 +1214,13 @@ class pyEditor(QMainWindow):
         stdout = bytes(data).decode("utf8")
 
         # --- redirect files list to Target Files viewer
-        if self.rt_settings['list_target_files'] and len(stdout) > 0:
-            self.rt_settings['list_target_files'] = False
+        if self.settings.value('LIST_TARGET_FILES', '') == 'True' and len(stdout) > 0:
+            self.settings.setValue('LIST_TARGET_FILES', 'False')
             self.targetFileViewer.clear()
             self.TargetFileList.clear()
             stdout_list = stdout.split('\n')
-            targ1 = QTreeWidgetItem([self.rt_settings['serial_port']])
-            targ1.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/port"))
+            targ1 = QTreeWidgetItem([self.settings.value('SERIAL_PORT', '')])
+            targ1.setIcon(0, QIcon(self.settings.value('APP_PATH', '') + "/icons/port"))
             for i in range(len(stdout_list)):
                 if stdout_list[i] == "":
                     break
@@ -1113,15 +1229,15 @@ class pyEditor(QMainWindow):
                     stdout_list[i] = stdout_list[i].replace('/', '', 1)
                 self.TargetFileList.append(stdout_list[i])
                 targ1_child = QTreeWidgetItem([stdout_list[i]])
-                targ1_child.setIcon(0, QIcon(self.rt_settings['app_path'] + "/icons/file"))
+                targ1_child.setIcon(0, QIcon(self.settings.value('APP_PATH', '') + "/icons/file"))
                 targ1.addChild(targ1_child)
 
             self.targetFileViewer.addTopLevelItem(targ1)
             self.targetFileViewer.expandAll()
 
         # Redirect target file text to the python text editor on the current tab
-        elif self.rt_settings['upload_target_file'] and len(stdout) > 0:
-            self.rt_settings['upload_target_file'] = False
+        elif self.settings.value('UPLOAD_TARGET_FILE', '') == 'True' and len(stdout) > 0:
+            self.settings.setValue('UPLOAD_TARGET_FILE', 'False')
             print(stdout)
             mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(stdout.replace(tab, "    "))
             QApplication.restoreOverrideCursor()
@@ -1139,28 +1255,28 @@ class pyEditor(QMainWindow):
         # reopen closed serial port so REPL will work
         if 'Stopped' in state_name:
             self.serialport.open(QIODevice.ReadWrite)       # reopen serial port
-        self.shellText.append(f"State changed: {state_name}")
+        #self.shellText.append(f"Process status: {state_name}")
 
     def procFinished(self):
-        if self.rt_settings['script_is_running']:
-            self.shellText.append('\nScript ' + self.rt_settings['cur_project_path'] + '.' +
-                        self.rt_settings['cur_target_script'] + ' has Completed\n')
-            self.rt_settings['script_is_running'] = False
-        self.shellText.append("External process complete")
-        if self.rt_settings['remove_target_file']:
-            self.rt_settings['remove_target_file'] = False
+        if self.settings.value('SCRIPT_IS_RUNNING', '') == 'True':
+            self.shellText.append('\nScript ' + self.settings.value('CUR_PROJECT_PATH', '') + '.' +
+                        self.settings.value('CUR_TARGET_SCRIPT', '') + ' has Completed\n')
+            self.settings.setValue('SCRIPT_IS_RUNNING', 'False')
+
+        if self.settings.value('REMOVE_TARGET_FILE', '') == 'True':
+            self.settings.setValue('REMOVE_TARGET_FILE', 'False')
             QApplication.restoreOverrideCursor()
 
     ### Run current script on target device (no download)
     def runTargetScript(self):
         # print('Running script...')
-        proc = 'ampy -p ' + self.rt_settings['serial_port']
-        proc += ' -b ' + self.rt_settings['baud_rate']  # add baudrate
+        proc = 'ampy -p ' + self.settings.value('SERIAL_PORT', '')
+        proc += ' -b ' + self.settings.value('BAUD_RATE', '')       # add baudrate
 
         dialog = QFileDialog(self)
         dialog.setWindowTitle('Run Script on Target Device')
         dialog.setNameFilter('(*.py)')
-        dialog.setDirectory(self.rt_settings['cur_project_path'] + '.' + self.rt_settings['cur_target_script'])
+        dialog.setDirectory(self.settings.value('CUR_PROJECT_PATH', '') + '.' + self.settings.value('CUR_TARGET_SCRIPT', ''))
         dialog.setFileMode(QFileDialog.ExistingFile)
         filename = None
         fname = ''
@@ -1173,16 +1289,15 @@ class pyEditor(QMainWindow):
             return
 
         proc += ' run ' + fname
-        self.rt_settings['cur_target_script'] = fname
+        self.settings.setValue('CUR_TARGET_SCRIPT', fname)
         self.shellText.append('\nStarting script: ' + fname + '\n')
         self.shellText.moveCursor(self.cursor.End)
-        self.rt_settings['cur_project_path'] = fname
-        self.settings.setValue('curScript', fname)
-        self.rt_settings['script_is_running'] = True
+        self.settings.setValue('CUR_PROJECT_PATH', fname)
+        self.settings.setValue('SCRIPT_IS_RUNNING', 'True')
         self.startProcess(proc)
 
     def stopTargetScript(self):
-        self.shellText.append("Stopping current script " + self.rt_settings['cur_target_script']+ "\n")
+        self.shellText.append("Stopping current script " + self.settings.value('CUR_TARGET_SCRIPT', '') + "\n")
         self.extProc.kill()
         start_time = time.time()
         while not self.extProc.atEnd():  # wait for current process to end.
@@ -1195,8 +1310,7 @@ class pyEditor(QMainWindow):
         dialog = QFileDialog(self)
         dialog.setWindowTitle('Download File to Target Device')
         dialog.setNameFilter('(*.py)')
-        dialog.setDirectory(self.rt_settings['cur_project_path'] + '.' + self.rt_settings['cur_target_script'])
-        # print('*** rt_settings.curProjectPath=' + self.rt_settings['cur_project_path'] + '\n')
+        dialog.setDirectory(self.settings.value('CUR_PROJECT_PATH', '') + '.' + self.settings.value('CUR_TARGET_SCRIPT', ''))
         dialog.setFileMode(QFileDialog.ExistingFile)
         filename = None
         fname = ''
@@ -1205,8 +1319,8 @@ class pyEditor(QMainWindow):
         filename = dialog.selectedFiles()
         fname = str(filename[0])
 
-        proc = 'ampy -p ' + self.rt_settings['serial_port']
-        proc += ' -b ' + self.rt_settings['baud_rate']  # add baudrate
+        proc = 'ampy -p ' + self.settings.value('SERIAL_PORT', '')
+        proc += ' -b ' + self.settings.value('BAUD_RATE', '')       # add baudrate
         proc += ' put ' + fname
         self.startProcess(proc)
         if self.extProc.waitForFinished(10000):
@@ -1226,7 +1340,7 @@ class pyEditor(QMainWindow):
         self.upldTree.move(0, 0)
         self.upldDialog.setWindowTitle("Upload File from Target Device")
 
-        self.upldTree.setHeaderItem(QTreeWidgetItem([self.rt_settings['serial_port']]))
+        self.upldTree.setHeaderItem(QTreeWidgetItem([self.settings.value('SERIAL_PORT', '')]))
         items = []
         for i in range(len(self.TargetFileList)):
             l1 = QTreeWidgetItem([self.TargetFileList[i]])
@@ -1265,10 +1379,10 @@ class pyEditor(QMainWindow):
         if self.upldDialog.result() == QDialog.Accepted:
             QApplication.setOverrideCursor(Qt.WaitCursor)
             _item = self.upldTree.currentItem().text(0)
-            proc = 'ampy -p ' + self.rt_settings['serial_port']
-            proc += ' -b ' + self.rt_settings['baud_rate']  # add baudrate
+            proc = 'ampy -p ' + self.settings.value('SERIAL_PORT', '')
+            proc += ' -b ' + self.settings.value('BAUD_RATE', '')  # add baudrate
             proc += ' get ' + _item
-            self.rt_settings['upload_target_file'] = True
+            self.settings.setValue('UPLOAD_TARGET_FILE', 'True')
             self.startProcess(proc)
 
     def upldDialogCancel(self):
@@ -1292,7 +1406,7 @@ class pyEditor(QMainWindow):
         self.rmTree = QTreeWidget()
         self.rmTree.setColumnCount(1)
         self.rmTree.move(0, 0)
-        self.rmTree.setHeaderItem(QTreeWidgetItem([self.rt_settings['serial_port']]))
+        self.rmTree.setHeaderItem(QTreeWidgetItem([self.settings.value('SERIAL_PORT', '')]))
         items = []
         for i in range(len(self.TargetFileList)):
             l1 = QTreeWidgetItem([self.TargetFileList[i]])
@@ -1330,10 +1444,10 @@ class pyEditor(QMainWindow):
         # dialog has closed - check if the entry was accepted or rejected
         if self.rmScriptDialog.result() == QDialog.Accepted:
             QApplication.setOverrideCursor(Qt.WaitCursor)
-            self.rt_settings['remove_target_file'] = True
+            self.settings.setValue('REMOVE_TARGET_FILE', 'True')
             _item = self.rmTree.currentItem().text(0)
-            proc = 'ampy -p ' + self.rt_settings['serial_port']
-            proc += ' -b ' + self.rt_settings['baud_rate']  # add baudrate
+            proc = 'ampy -p ' + self.settings.value('SERIAL_PORT', '')
+            proc += ' -b ' + self.settings.value('BAUD_RATE', '')  # add baudrate
             proc += ' rm ' + _item
             self.startProcess(proc)
             if self.extProc.waitForFinished(10000):
@@ -1348,24 +1462,23 @@ class pyEditor(QMainWindow):
         self.rmScriptDialog.close()
 
     def newTargetFolder(self):
-        proc = 'ampy -p ' + self.rt_settings['serial_port']
-        proc += ' -b ' + self.rt_settings['baud_rate']  # add baudrate
+        proc = 'ampy -p ' + self.settings.value('SERIAL_PORT', '')
+        proc += ' -b ' + self.settings.value('BAUD_RATE', '')  # add baudrate
         proc += ' mkdir ' + 'testdir'
         self.startProcess(proc)
         if self.extProc.waitForFinished(10000):
             self.viewTargetFiles()
 
     def rmTargetFolder(self):
-        proc = 'ampy -p ' + self.rt_settings['serial_port']
-        proc += ' -b ' + self.rt_settings['baud_rate']  # add baudrate
+        proc = 'ampy -p ' + self.settings.value('SERIAL_PORT', '')
+        proc += ' -b ' + self.settings.value('BAUD_RATE', '')  # add baudrate
         proc += ' rmdir ' + 'testdir'
         self.startProcess(proc)
         if self.extProc.waitForFinished(10000):
             self.viewTargetFiles()
 
     def setBaudrate(self, text):
-        self.settings.setValue('baudrate', text)
-        self.rt_settings['baud_rate'] = text
+        self.settings.setValue('BAUD_RATE', text)
         self.serialport.setBaudRate(int(text))
 
     def serial_read_bytes(self):
@@ -1374,36 +1487,35 @@ class pyEditor(QMainWindow):
         i = 0
         # strip binary crap from serial data
         while i < len(serialBytes):
-            if (serialBytes[i] == 10 or serialBytes[i] == 13) and not self.rt_settings['block_cr']:    # LF, CR are OK
+            if (serialBytes[i] == 10 or serialBytes[i] == 13) and self.settings.value('BLOCK_CR', '') == 'False':    # LF, CR are OK
                 outstr = outstr + chr(serialBytes[i])
             elif 31 < serialBytes[i] < 128:
                 outstr = outstr + chr(serialBytes[i])
             i += 1
 
-        self.rt_settings['block_cr'] = False
+        self.settings.setValue('BLOCK_CR', 'False')
 
         # put received chars into the shellText widget
-        if not self.rt_settings['block_echo']:
-            if self.rt_settings['ignore_serial_after_reset']:
+        if self.settings.value('BLOCK_ECHO', '') == 'False':
+            if self.settings.value('IGNORE_SERIAL_AFTER_RESET', '') == 'True':
                 word_offset = outstr.find('Micro')
                 if word_offset < 0:
                     outstr = ''
                 else:
-                    self.rt_settings['ignore_serial_after_reset'] = False
+                    self.settings.setValue('IGNORE_SERIAL_AFTER_RESET', 'False')
                     outstr = '\n' + outstr[word_offset:]
             self.shellText.moveCursor(self.cursor.End)
             self.shellText.insertPlainText(outstr)
             self.shellText.moveCursor(self.cursor.End)
             self.shellText.ensureCursorVisible()
         else:
-            self.rt_settings['block_echo'] = False
+            self.settings.setValue('BLOCK_ECHO', 'False')
 
     def saveComPort(self):
         if len(self.comportfield.text()) > 0:
             self.comportfield.selectAll()
             self.comportfield.repaint()
-            self.settings.setValue('comportname', self.comportfield.text())
-            self.rt_settings['serial_port'] = self.comportfield.text()
+            self.settings.setValue('SERIAL_PORT', self.comportfield.text())
             self.comportfield.deselect()
             self.serialport.setPortName(self.comportfield.text())
 
@@ -1430,7 +1542,7 @@ class pyEditor(QMainWindow):
             self.pix.fill(col)
 
     def loadTemplates(self):
-        folder = self.rt_settings['app_path'] + "/templates"
+        folder = self.settings.value('APP_PATH', '') + "/templates"
         if QDir().exists(folder):
             self.currentDir = QDir(folder)
             count = self.currentDir.count()
@@ -1439,7 +1551,7 @@ class pyEditor(QMainWindow):
             for i in range(count - 2):
                 file = (files[i])
                 if file.endswith(".txt"):
-                    self.templates.addItem(file.replace(self.rt_settings['app_path'] + "/templates", "").replace(".txt", ""))
+                    self.templates.addItem(file.replace(self.settings.value('APP_PATH', '')  + "/templates", "").replace(".txt", ""))
 
     def reindentText(self):
         if mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() == "" or \
@@ -1487,8 +1599,8 @@ class pyEditor(QMainWindow):
         if not mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText() == "":
             cmenu.addAction(QIcon.fromTheme("gtk-find-and-replace"), "replace all occurrences with", self.replaceThis)
             cmenu.addSeparator()
-        cmenu.addAction(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/zeal"), "Zeal Developer Help", self.showZeal)
-        cmenu.addAction(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/find"), "Find this (F10)", self.findNextWord)
+        cmenu.addAction(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/zeal"), "Zeal Developer Help", self.showZeal)
+        cmenu.addAction(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/find"), "Find this (F10)", self.findNextWord)
         cmenu.addSeparator()
         cmenu.addSeparator()
         cmenu.addAction(self.commentAct)
@@ -1501,7 +1613,7 @@ class pyEditor(QMainWindow):
             cmenu.addAction(self.indentAct)
             cmenu.addAction(self.indentLessAct)
         cmenu.addSeparator()
-        cmenu.addAction(QIcon.fromTheme(self.rt_settings['app_path'] + "/icons/color1"), "Insert QColor", self.insertColor)
+        cmenu.addAction(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/color1"), "Insert QColor", self.insertColor)
         cmenu.addSeparator()
         cmenu.addAction(QIcon.fromTheme("preferences-color"), "Insert Color Hex Value", self.changeColor)
         cmenu.exec_(mpconfig.editorList[mpconfig.currentTabIndex].mapToGlobal(point))
@@ -1586,10 +1698,9 @@ class pyEditor(QMainWindow):
         self.shellText.ensureCursorVisible()
 
     def createActions(self):
-        for i in range(self.rt_settings['max_recent_files']):
-            self.recentFileActs.append(
-                QAction(self, visible=False,
-                        triggered=self.openRecentFile))
+        maxf = int(self.settings.value('MAX_RECENT_FILES', '15'))
+        for i in range(maxf):
+            self.recentFileActs.append(QAction(self, visible=False, triggered=self.openRecentFile))
 
     def addBookmark(self):
         linenumber = self.getLineNumber()
@@ -1706,7 +1817,7 @@ class pyEditor(QMainWindow):
                 else:
                     self.msgbox("Info", "File does not exist!")
 
-    ### New File
+    ### Create New File
     def newFile(self):
         self.newf_name = 'untitled'
         self.fdialog = QDialog()
@@ -1743,7 +1854,7 @@ class pyEditor(QMainWindow):
         self.statusBar().showMessage("new File (" + self.newf_name + ") created.")
         mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
         self.bookmarks.clear()
-        self.setWindowTitle("new File[*]")
+        self.setWindowTitle('new File[*]')
 
     def newf_accept(self):
         self.newf_name = self.fileedit.text()
@@ -1785,7 +1896,7 @@ class pyEditor(QMainWindow):
     ### Open File
     def openFile(self, path=None):
         if not path:
-            path, _ = QFileDialog.getOpenFileName(self, "Open File", self.rt_settings['cur_project_path'],
+            path, _ = QFileDialog.getOpenFileName(self, "Open File", self.settings.value('CUR_PROJECT_PATH', ''),
                                                   "Python Files (*.py);; all Files (*)")
         if path:
             self.openFileOnStart(path)
@@ -2158,7 +2269,9 @@ class pyEditor(QMainWindow):
 
             if not fileName == "/tmp/tmp.py":
                 files.insert(0, fileName)
-            del files[self.rt_settings['max_recent_files']:]
+
+            maxf = int(self.settings.value('MAX_RECENT_FILES', ''))
+            del files[maxf:]
 
             self.settings.setValue('recentFileList', files)
 
@@ -2172,7 +2285,7 @@ class pyEditor(QMainWindow):
         if not files:
             numRecentFiles = 0
         else:
-            numRecentFiles = min(len(files), self.rt_settings['max_recent_files'])
+            numRecentFiles = min(len(files), int(self.settings.value('MAX_RECENT_FILES', '')))
 
         for i in range(numRecentFiles):
             text = "&%d %s" % (i + 1, self.strippedName(files[i]))
@@ -2191,16 +2304,16 @@ class pyEditor(QMainWindow):
         self.updateRecentFileActions()
 
     def readSettings(self):
-        if self.settings.value("winpos") != "":
-            pos = self.settings.value("winpos", QPoint(200, 200))
+        if self.settings.value("WINPOS") != "":
+            pos = self.settings.value("WINPOS", QPoint(200, 200))
             self.move(pos)
-        if self.settings.value("winsize") != "":
-            size = self.settings.value("winsize", QSize(400, 400))
+        if self.settings.value("WINSIZE") != "":
+            size = self.settings.value("WINSIZE", QSize(400, 400))
             self.resize(size)
 
     def writeSettings(self):
-        self.settings.setValue("winpos", self.pos())
-        self.settings.setValue("winsize", self.size())
+        self.settings.setValue("WINPOS", self.pos())
+        self.settings.setValue("WINSIZE", self.size())
 
     def msgbox(self, title, message):
         QMessageBox.warning(self, title, message)
@@ -2211,7 +2324,7 @@ class pyEditor(QMainWindow):
 
     def insertTemplate(self):
         line = int(self.getLineNumber())
-        path = self.rt_settings['app_path'] + "/templates/" + self.templates.itemText(self.templates.currentIndex()) + ".txt"
+        path = self.settings.value('APP_PATH', '') + "/templates/" + self.templates.itemText(self.templates.currentIndex()) + ".txt"
         if path:
             inFile = QFile(path)
             if inFile.open(QFile.ReadOnly | QFile.Text):
