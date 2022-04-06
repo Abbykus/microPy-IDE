@@ -54,7 +54,7 @@ The Adafruit 'ampy' application provides communication with and control of the m
 
 - *Windows*
 
-After installing *zeal* goto tools->docsets and add Python language support.
+After installing *zeal*, launch it and goto ***tools->docsets*** and add Python language support.
 
 ## MicroPython Firmware for the QDEV Boards
 All versions of the Abbykus QDEV boards are capable of running the MicroPython language. 
