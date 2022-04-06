@@ -231,27 +231,17 @@ class pyEditor(QMainWindow):
     def __init__(self, parent=None):
         super(pyEditor, self).__init__(parent)
 
-        # non-persistent run time variables
-        # self.rt_settings = {'os_name': '', 'app_path': QFileInfo.path(QFileInfo(QCoreApplication.arguments()[0])),
-        #                     'cur_project_name': '', 'cur_project_path': '', 'cur_target_script': '',
-        #                     'script_is_running': False, 'serial_port': '', 'baud_rate': '',
-        #                     'list_target_files': False, 'upload_target_file': False, 'remove_target_file': False,
-        #                     'ignore_text_changed': False, 'block_echo': False, 'block_cr': False,
-        #                     'ignore_serial_after_reset': False, 'max_recent_files': 15}
-
+        ### Initialize settings
         self.settings = QSettings("Abbykus", "microPy")
         self.settings.setValue('APP_PATH', QFileInfo.path(QFileInfo(QCoreApplication.arguments()[0])))
         self.settings.setValue('OS_TYPE', sys.platform)
-
-        # self.rt_settings['cur_project_name'] = self.settings.value('cur_project_name', '')
-        # self.rt_settings['cur_project_path'] = self.settings.value('cur_project_path', '')
-        # self.rt_settings['cur_target_script'] = self.settings.value('cur_target_script', '')
-        # self.rt_settings['baud_rate'] = self.settings.value('baudrate', '115200')
+        if len(self.settings.value('CUR_PROJECT_PATH', '')) == 0:
+            self.settings.setValue('CUR_PROJECT_PATH', self.settings.value('APP_PATH', '') + '/projects')
 
         self.TargetFileList = []
 
         # set up the non-persistent system settings
-        print('os name= ' + self.settings.value('OS_NAME', ''))     # find name of os, 'linux', 'windows', etc
+        print('os name= ' + self.settings.value('OS_TYPE', ''))     # find name of os, 'linux', 'windows', etc
         print('project path= ' + self.settings.value('CUR_PROJECT_PATH', ''))
         print('app path= ' + self.settings.value('APP_PATH', ''))
 
@@ -349,6 +339,8 @@ class pyEditor(QMainWindow):
 
         self.newFileAct = QAction("&New File", self, shortcut=QKeySequence.New, triggered=self.newFile)
         self.newFileAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/new24"))
+        if len(self.settings.value('CUR_PROJECT_NAME', '')) == 0:
+            self.newFileAct.setEnabled(False)
 
         self.openFileAct = QAction("&Open File", self, shortcut=QKeySequence.Open,  triggered=self.openFile)
         self.openFileAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/open24"))
@@ -560,6 +552,7 @@ class pyEditor(QMainWindow):
         self.filemenu.addAction(self.newProjectAct)
         self.filemenu.addAction(self.openProjectAct)
         self.filemenu.addAction(self.closeProjectAct)
+
         self.filemenu.addAction(self.newFileAct)
         self.filemenu.addAction(self.openFileAct)
         self.filemenu.addAction(self.saveFileAct)
@@ -792,6 +785,8 @@ class pyEditor(QMainWindow):
                 self.shellText.setText('Unable to open Serial port ' + self.settings.value('SERIAL_PORT', ''))
 
     def isProjectValid(self, proj_name):
+        if len(proj_name) == 0:
+            return False
         path = self.settings.value('CUR_PROJECT_PATH', '') + '/' + proj_name
         return os.path.isdir(path)
 
@@ -977,7 +972,7 @@ class pyEditor(QMainWindow):
         pv_menu.addSection('PROJECT ACTIONS:')
 
         pv_act1 = QAction("Back")
-        pv_act1.setIcon(QIcon(self.self.settings.value('APP_PATH', '') + "/icons/unindent"))
+        pv_act1.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/unindent"))
         pv_act1.setIconVisibleInMenu(True)
         pv_act1.triggered.connect(self.backUpOneDirectory)
         pv_menu.addAction(pv_act1)
@@ -989,7 +984,7 @@ class pyEditor(QMainWindow):
         pv_menu.addAction(pv_act2)
 
         pv_act3 = QAction("New Project File")
-        pv_act3.setIcon(QIcon(self.self.settings.value('APP_PATH', '') + "/icons/new24"))
+        pv_act3.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/new24"))
         pv_act3.setIconVisibleInMenu(True)
         pv_act3.triggered.connect(self.newFile)
         pv_menu.addAction(pv_act3)
@@ -1026,6 +1021,7 @@ class pyEditor(QMainWindow):
         # pv_menu.addAction(pv_act8)
         position.setY(position.y() + 50)
         pv_menu.exec(self.projectFileViewer.mapToGlobal(position))
+        self.newFileAct.setEnabled(True)
 
     def backUpOneDirectory(self):
         path = os.getcwd().split('/', 20)
