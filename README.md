@@ -4,7 +4,7 @@
 
 The *microPy-IDE* is a development environment for the [microPython language](https://micropython.org/) which is a subset of Python 3 and is optimised to run on microcontrollers and in constrained environments. 
 
-Using the familiar Python programming language you can interact with development hardware and control it, much like controlling hardware with an Arduino using C/C++. The Abbykus QDEV family of boards makes it easy to get started using MicroPython and thanks to recent contributions to MicroPython, you can turn any QDEV board into a MicroPython device.
+Using the familiar Python programming language you can interact with development hardware and control it, much the same as controlling hardware with the Arduino IDE using C/C++. The Abbykus QDEV family of boards makes it easy to get started using MicroPython and thanks to recent contributions to MicroPython, you can turn any QDEV board into a MicroPython device.
 
 
 ![](https://github.com/Abbykus/microPy-IDE/blob/3a2bbbc565d9bde55c800ac3cb0ba72c25d3f430/photos/microPy-IDE.png)
@@ -64,8 +64,10 @@ To install MicroPython firmware on the QDEV board see [Getting Started with the 
 
 See also [MicroPython Downloads](https://micropython.org/download/) for the latest firmware releases.
 
-Once you have installed MicroPython on the QDEV board you can connect to the board with the microPy-IDE. You should expect to see a '>>>' prompt in the interactive shell terminal indicating the interactive mode. You can enter MicroPython commands or scripts manually.
-If the board fails to connect you may need to set the serial port name and baud rate on the microPython toolbar at the bottom of the microPy-IDE window.
+Once you have installed MicroPython on the QDEV board you can connect to the board with the microPy-IDE. 
+First set the serial port name, on Linux typically /dev/ttyUSB0. Also set the baudrate to 115200.
+Reset the target board and you should expect to see a '>>>' prompt in the interactive shell terminal indicating the interactive mode. You can enter MicroPython commands or scripts manually.
+
 
 
 
