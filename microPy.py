@@ -243,6 +243,7 @@ class pyEditor(QMainWindow):
         # set up the non-persistent system settings
         print('os name= ' + self.settings.value('OS_TYPE', ''))     # find name of os, 'linux', 'windows', etc
         print('project path= ' + self.settings.value('CUR_PROJECT_PATH', ''))
+        print('project name= ' + self.settings.value('CUR_PROJECT_NAME', ''))
         print('app path= ' + self.settings.value('APP_PATH', ''))
 
         self.extProc = QProcess()       # used to start external programs
@@ -275,7 +276,7 @@ class pyEditor(QMainWindow):
             proj_name = 'Project: ' + proj_name
         else:
             proj_name = 'Project: None'
-            self.settings.setValue('CUR_PROJECT_NAME', '')
+            #self.settings.setValue('CUR_PROJECT_NAME', '')
         self.projectFileViewer.setHeaderItem(QTreeWidgetItem([proj_name]))
         self.projectFileViewer.setColumnCount(1)
         self.projectFileViewer.itemDoubleClicked.connect(self.projectFileViewerDblClicked)
@@ -285,6 +286,8 @@ class pyEditor(QMainWindow):
         # Populate the Project file viewer
         self.showDirectoryTree(self.settings.value('CUR_PROJECT_PATH', ''))
         self.projectFileViewer.expandAll()
+
+
 
         # Create the Target file viewer
         self.targetFileViewer = fileViewer()
@@ -339,8 +342,8 @@ class pyEditor(QMainWindow):
 
         self.newFileAct = QAction("&New File", self, shortcut=QKeySequence.New, triggered=self.newFile)
         self.newFileAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/new24"))
-        if len(self.settings.value('CUR_PROJECT_NAME', '')) == 0:
-            self.newFileAct.setEnabled(False)
+        # if len(self.settings.value('CUR_PROJECT_NAME', '')) == 0:
+        #     self.newFileAct.setEnabled(False)
 
         self.openFileAct = QAction("&Open File", self, shortcut=QKeySequence.Open,  triggered=self.openFile)
         self.openFileAct.setIcon(QIcon.fromTheme(self.settings.value('APP_PATH', '') + "/icons/open24"))
@@ -543,16 +546,19 @@ class pyEditor(QMainWindow):
         tbf.addAction(QAction(QIcon.fromTheme("document-properties"), "Check && Reindent Text", self,
                               triggered=self.reindentText))
 
+        # 'File' dropdown menu
         bar = self.menuBar()
         bar.setStyleSheet(stylesheet2(self))
         self.filemenu = bar.addMenu("File")
         self.filemenu.setStyleSheet(stylesheet2(self))
         self.separatorAct = self.filemenu.addSeparator()
-
+        self.filemenu.addSeparator()
         self.filemenu.addAction(self.newProjectAct)
         self.filemenu.addAction(self.openProjectAct)
         self.filemenu.addAction(self.closeProjectAct)
+        self.filemenu.addSeparator()
 
+        #self.filemenu.insertSeparator(self.separatorAct)
         self.filemenu.addAction(self.newFileAct)
         self.filemenu.addAction(self.openFileAct)
         self.filemenu.addAction(self.saveFileAct)
@@ -563,7 +569,6 @@ class pyEditor(QMainWindow):
         self.updateRecentFileActions()
         self.filemenu.addSeparator()
         self.filemenu.addAction(self.clearRecentAct)
-        self.filemenu.addSeparator()
         self.filemenu.addAction(self.exitAct)
 
         ### Top level menu bar 'Edit'
@@ -787,7 +792,7 @@ class pyEditor(QMainWindow):
     def isProjectValid(self, proj_name):
         if len(proj_name) == 0:
             return False
-        path = self.settings.value('CUR_PROJECT_PATH', '') + '/' + proj_name
+        path = self.settings.value('CUR_PROJECT_PATH', '')
         return os.path.isdir(path)
 
     def getDirectory(self):
@@ -806,6 +811,9 @@ class pyEditor(QMainWindow):
 
         self.load_project_tree(curpath, self.projectFileViewer)
         self.projectFileViewer.setItemsExpandable(True)
+
+        proj_name = 'Project: ' + self.settings.value('CUR_PROJECT_NAME', '')
+        self.projectFileViewer.setHeaderItem(QTreeWidgetItem([proj_name]))
 
     # recursive function to display directory contnts in projectFileViewer
     def load_project_tree(self, startpath, tree):
@@ -899,6 +907,7 @@ class pyEditor(QMainWindow):
             self.statusBar().showMessage("New Project (" + self.new_proj + ") created.")
             self.showDirectoryTree(self.settings.value('CUR_PROJECT_PATH', ''))
 
+        # self.newProjectAct.setEnabled(True)
         # self.bookmarks.clear()
         # self.setWindowTitle('new File[*]')
 
@@ -915,6 +924,9 @@ class pyEditor(QMainWindow):
         os.chdir(proj_path)
         for folder in os.listdir(proj_path):
             print(folder)
+
+        self.settings.setValue('CUR_PROJECT_NAME', self.new_proj)
+        self.newProjectAct.setEnabled(True)
 
     def closeCurrentProject(self):
         return
@@ -971,23 +983,23 @@ class pyEditor(QMainWindow):
         pv_menu = QMenu(self.projectFileViewer)
         pv_menu.addSection('PROJECT ACTIONS:')
 
-        pv_act1 = QAction("Back")
-        pv_act1.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/unindent"))
+        # pv_act1 = QAction("Back")
+        # pv_act1.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/unindent"))
+        # pv_act1.setIconVisibleInMenu(True)
+        # pv_act1.triggered.connect(self.backUpOneDirectory)
+        # pv_menu.addAction(pv_act1)
+
+        pv_act1 = QAction("Change Project Directory")
+        pv_act1.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/folder_open"))
         pv_act1.setIconVisibleInMenu(True)
-        pv_act1.triggered.connect(self.backUpOneDirectory)
+        pv_act1.triggered.connect(self.getDirectory)
         pv_menu.addAction(pv_act1)
 
-        pv_act2 = QAction("Change Project Directory")
-        pv_act2.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/folder_open"))
+        pv_act2 = QAction("New Project File")
+        pv_act2.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/new24"))
         pv_act2.setIconVisibleInMenu(True)
-        pv_act2.triggered.connect(self.getDirectory)
+        pv_act2.triggered.connect(self.newFile)
         pv_menu.addAction(pv_act2)
-
-        pv_act3 = QAction("New Project File")
-        pv_act3.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/new24"))
-        pv_act3.setIconVisibleInMenu(True)
-        pv_act3.triggered.connect(self.newFile)
-        pv_menu.addAction(pv_act3)
 
         # pv_act3 = QAction("Stop Target Script")
         # pv_act3.setIcon(QIcon(self.settings.value('APP_PATH', '') + "/icons/stop"))
@@ -1021,19 +1033,19 @@ class pyEditor(QMainWindow):
         # pv_menu.addAction(pv_act8)
         position.setY(position.y() + 50)
         pv_menu.exec(self.projectFileViewer.mapToGlobal(position))
-        self.newFileAct.setEnabled(True)
 
-    def backUpOneDirectory(self):
-        path = os.getcwd().split('/', 20)
-        print(path)
-        newpath = ''
-        for i in range(len(path) - 1):
-            if path[i]:
-                newpath += ('/' + path[i])
 
-        print(newpath)
-        os.chdir(newpath)
-        self.showDirectoryTree(newpath)
+    # def backUpOneDirectory(self):
+    #     path = os.getcwd().split('/', 20)
+    #     print(path)
+    #     newpath = ''
+    #     for i in range(len(path) - 1):
+    #         if path[i]:
+    #             newpath += ('/' + path[i])
+    #
+    #     print(newpath)
+    #     os.chdir(newpath)
+    #     self.showDirectoryTree(newpath)
 
     # the action executed when menu is clicked
     def display_selection(self):
@@ -1156,12 +1168,11 @@ class pyEditor(QMainWindow):
                     self.serialport.writeData(bytes(event.text(), 'utf-8'))
         return super().eventFilter(obj, event)
 
+    # Project File Viewer was double clicked
     def projectFileViewerDblClicked(self, index):
         item_text = self.projectFileViewer.currentItem().text(0)
-        if item_text == '/':
-            self.showDirectoryTree(os.getcwd() + item_text)
-            print('cur dir=' + os.getcwd())
-        print(item_text)
+        if len(item_text) > 0:
+            self.openFile(self.settings.value('CUR_PROJECT_PATH', '') + '/' + item_text)
 
     def targetFileViewerDblClicked(self, index):
         titem = self.targetFileViewer.currentItem().text(0)
@@ -1842,15 +1853,18 @@ class pyEditor(QMainWindow):
                 mpconfig.currentTabIndex = i
                 dup_tab_name = True
                 break
-        if not dup_tab_name:
-            self.create_new_tab(self.newf_name)
+        if dup_tab_name or mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() != '':
+            self.create_new_tab(self.newf_name)     # create
         self.change_text_editor(mpconfig.currentTabIndex)
         self.setModified(False)
         mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(self.cursor.End)
         self.statusBar().showMessage("new File (" + self.newf_name + ") created.")
+        self.tabsList.tabBar().setTabText(self.tabsList.currentIndex(), self.newf_name) # update editor tab text
         mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
         self.bookmarks.clear()
         self.setWindowTitle('new File[*]')
+        self.filename = self.newf_name
+        self.fileSave()
 
     def newf_accept(self):
         self.newf_name = self.fileedit.text()
@@ -1862,31 +1876,20 @@ class pyEditor(QMainWindow):
 
     ### open File
     def openFileOnStart(self, path=None):
-        if path:
+        if os.path.isfile(path):
             inFile = QFile(path)
             if inFile.open(QFile.ReadWrite | QFile.Text):
                 text = inFile.readAll()
                 text = str(text, encoding='utf8')   # Python3 method
-                # if current editor is empty put file text there, else create new tab for text
-                curtxt = mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()
-                if len(curtxt) > 0:
+                # if current editor is empty put file text there, else create new tab & editor for text
+                #curtxt = mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()
+                if len(mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()) > 0:
                     self.create_new_tab(path)
                 mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(text.replace(tab, "    "))
                 self.setModified(False)
                 self.setCurrentFile(path, False)
                 self.findBookmarks()
-                ### save backup
-                file = QFile(self.filename + "_backup")
-                if not file.open(QFile.WriteOnly | QFile.Text):
-                    QMessageBox.warning(self, "Error",
-                                        "Cannot write file %s:\n%s." % (self.filename, file.errorString()))
-                    return
-                outstr = QTextStream(file)
-                QApplication.setOverrideCursor(Qt.WaitCursor)
-                outstr << mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()
-                QApplication.restoreOverrideCursor()
-                self.statusBar().showMessage(
-                    "File '" + path + "' loaded.")
+                self.statusBar().showMessage("File '" + path + "' loaded.")
                 mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
 
     ### Open File
@@ -1900,7 +1903,9 @@ class pyEditor(QMainWindow):
     ### Save file
     def fileSave(self):
         if self.filename != "" and self.filename != 'untitled':
-            file = QFile(self.filename)
+            file = QFile(self.settings.value('CUR_PROJECT_PATH', '') + '/' + self.filename)
+            t = QFile.Text
+            print('qfile txt=', t)
             if not file.open(QFile.WriteOnly | QFile.Text):
                 QMessageBox.warning(self, "Error",
                                     "Cannot write file %s:\n%s." % (self.filename, file.errorString()))
@@ -1908,15 +1913,15 @@ class pyEditor(QMainWindow):
 
             outstr = QTextStream(file)
             QApplication.setOverrideCursor(Qt.WaitCursor)
-            outstr << mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()
+            outstr << mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()   # write text to file & close
             QApplication.restoreOverrideCursor()
             self.setModified(False)
             self.fname = QFileInfo(self.filename).fileName()
-            self.setWindowTitle(self.fname + "[*]")
+            #self.setWindowTitle(self.fname + "[*]")
             self.statusBar().showMessage("File saved.")
             self.setCurrentFile(self.filename, False)
             mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
-
+            self.showDirectoryTree(self.settings.value('CUR_PROJECT_PATH', ''))
 
         else:
             self.fileSaveAs()
@@ -1925,7 +1930,6 @@ class pyEditor(QMainWindow):
     def fileSaveAs(self):
         fn, _ = QFileDialog.getSaveFileName(self, "Save as...", self.filename,
                                             "Python files (*.py)")
-
         if not fn:
             print("Error saving")
             return False
@@ -1936,7 +1940,9 @@ class pyEditor(QMainWindow):
 
         self.filename = fn
         self.fname = QFileInfo(QFile(fn).fileName())
-        return self.fileSave()
+        self.fileSave()
+        self.showDirectoryTree(self.settings.value('CUR_PROJECT_PATH', ''))
+        self.settings.setValue('CUR_PROJECT_SCRIPT', self.fname)
 
     def closeEvent(self, e):
         self.writeSettings()
