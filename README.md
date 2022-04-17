@@ -45,9 +45,6 @@ If the version of Python is lower than 3.6 please consider upgrading to the late
 ### Install PYQT5 GUI Widgets Toolkit
 Open a terminal and type **pip3 install pyqt5 pyqt5-tools**
 
-### Install Adafruit Ampy
-The Adafruit 'ampy' application provides communication with and control of the microPython target device (QDEV board). See [MicroPython Basics](https://cdn-learn.adafruit.com/downloads/pdf/micropython-basics-load-files-and-run-code.pdf) for installation instructions.
-
 ### Install Zeal Offline Language Reference (optional)
 - *Linux / MacOS*
   - Launch terminal and type **sudo apt install zeal**
