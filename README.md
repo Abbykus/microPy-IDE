@@ -56,7 +56,7 @@ After installing *zeal*, launch it and goto ***tools->docsets*** and add Python 
 ## microPy-IDE Install & Run
 Install *microPy-IDE* by cloning this project to your local machine. Click on the *Code* button and download the Zip file.
 Unpack the Zip file in a folder of your choice.
-Open a terminal and navigate to the microPy-IDE folder.
+Open a terminal and navigate to the microPy-IDE-master folder.
 Type ***python3 microPy.py***.
 
 ## MicroPython Firmware for the QDEV Boards
