@@ -54,7 +54,8 @@ Open a terminal and type **pip3 install pyqt5 pyqt5-tools**
 After installing *zeal*, launch it and goto ***tools->docsets*** and add Python language support.
 
 ## microPy-IDE Install & Run
-Install *microPy-IDE* by cloning this project to your local machine. 
+Install *microPy-IDE* by cloning this project to your local machine. Click on the *Code* button and download the Zip file.
+Unpack the Zip file in a folder of your choice.
 Open a terminal and navigate to the microPy-IDE folder.
 Type ***python3 microPy.py***.
 
