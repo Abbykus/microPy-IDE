@@ -457,7 +457,7 @@ class Pyboard:
 # but for Python3 we want to provide the nicer version "exec"
 setattr(Pyboard, "exec", Pyboard.exec_)
 
-def execfile(filename, device='/dev/ttyACM0', baudrate=115200, user='micro', password='python'):
+def execfile(filename, device='/dev/ttyUSB0', baudrate=115200, user='micro', password='python'):
     pyb = Pyboard(device, baudrate, user, password)
     pyb.enter_raw_repl()
     output = pyb.execfile(filename)

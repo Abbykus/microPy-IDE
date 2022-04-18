@@ -255,11 +255,11 @@ class pyEditor(QMainWindow):
 
         self.TargetFileList = []
 
-        # set up the non-persistent system settings
-        print('os name= ' + self.setx.getOS())     # find name of os, 'linux', 'windows', etc
-        print('project path= ' + self.setx.getCurProjectPath())
-        print('project name= ' + self.setx.getCurProjectName())
-        print('app path= ' + self.setx.getAppPath())
+        # # set up the non-persistent system settings
+        # print('os name= ' + self.setx.getOS())     # find name of os, 'linux', 'windows', etc
+        # print('project path= ' + self.setx.getCurProjectPath())
+        # print('project name= ' + self.setx.getCurProjectName())
+        # print('app path= ' + self.setx.getAppPath())
 
         self.extProc = QProcess()       # used to start external programs
         self.tabsList = QTabWidget()
@@ -834,6 +834,7 @@ class pyEditor(QMainWindow):
 
         self.load_project_tree(curpath, self.projectFileViewer)
         self.projectFileViewer.setItemsExpandable(True)
+        self.projectFileViewer.expandAll()
 
         proj_name = 'Project: ' + self.setx.getCurProjectName()
         self.projectFileViewer.setHeaderItem(QTreeWidgetItem([proj_name]))
@@ -1206,7 +1207,8 @@ class pyEditor(QMainWindow):
         titem = self.targetFileViewer.currentItem().text(0)
         # ignore dbl click on serial port name
         if titem != self.setx.getSerialPort():
-            print(titem)
+            self.uploadScript(titem)
+            #print(titem)
 
     # Reset ESP32 target device by asserting DTR
     def resetTargetDevice(self):
@@ -1245,111 +1247,19 @@ class pyEditor(QMainWindow):
 
         self.targetFileViewer.addTopLevelItem(targ1)
         self.targetFileViewer.expandAll()
-
         return ret
 
-        # return
-        # proc = 'ampy -p ' + self.setx.getSerialPort()
-        # proc += ' -b ' + self.setx.getBaudRate()  # add baudrate
-        # proc += ' ls'
-        # self.setx.setFlagStr('LIST_TARGET_FILES', 'True')    # direct listed files into the Target Files viewer
-        # self.startProcess(proc)
-
-    # Start external process. procCmdStr has the name of the external proc and its arguments
-    def startProcess(self, procCmdStr):
-        if len(procCmdStr) == 0:
-            return
-        if self.extProc.atEnd():  # No process running if true.
-            # self.serialport.close()     # close serial port cuz external proc needs to use serial port
-            self.extProc.finished.connect(self.procFinished)
-            self.extProc.readyReadStandardOutput.connect(self.procHandleStdout)
-            self.extProc.readyReadStandardError.connect(self.procHandleStderr)
-            self.extProc.stateChanged.connect(self.procHandleState)
-            self.extProc.start(procCmdStr)
-            self.extProc.waitForStarted(3000)
-            mpconfig.sline = ''
-        else:
-            self.shellText.append('Run Failed! Another script is currently running!\n')
-
-    def procHandleStderr(self):
-        data = self.extProc.readAllStandardError()
-        stderr = bytes(data).decode("utf8")
-        self.shellText.append(stderr)
-
-    # external process returns data
-    def procHandleStdout(self):
-        data = self.extProc.readAllStandardOutput()
-        stdout = bytes(data).decode("utf8")
-
-        # --- redirect files list to Target Files viewer
-        if self.setx.getFlagStr('LIST_TARGET_FILES') == 'True' and len(stdout) > 0:
-            self.setx.setFlagStr('LIST_TARGET_FILES', 'False')
-            self.targetFileViewer.clear()
-            self.TargetFileList.clear()
-            stdout_list = stdout.split('\n')
-            targ1 = QTreeWidgetItem([self.setx.getSerialPort()])
-            targ1.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/port"))
-            for i in range(len(stdout_list)):
-                if stdout_list[i] == "":
-                    break
-                # print('stdout_list[i]=' + stdout_list[i])
-                if stdout_list[i].startswith('/', 0, 1) and stdout_list[i].find('.') != -1:     # is this a directory?
-                    stdout_list[i] = stdout_list[i].replace('/', '', 1)
-                self.TargetFileList.append(stdout_list[i])
-                targ1_child = QTreeWidgetItem([stdout_list[i]])
-                targ1_child.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/file"))
-                targ1.addChild(targ1_child)
-
-            self.targetFileViewer.addTopLevelItem(targ1)
-            self.targetFileViewer.expandAll()
-
-        # Redirect target file text to the python text editor on the current tab
-        elif self.setx.getFlagStr('UPLOAD_TARGET_FILE') == 'True' and len(stdout) > 0:
-            self.setx.setFlagStr('UPLOAD_TARGET_FILE', 'False')
-            print(stdout)
-            mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(stdout.replace(tab, "    "))
-            QApplication.restoreOverrideCursor()
-
-        else:
-            mpconfig.sline += stdout
-            if mpconfig.sline.endswith('\x0a'):
-                # Replace all occurrences of character s with an empty string
-                mpconfig.sline = re.sub('\x0d', '', mpconfig.sline)
-                mpconfig.sline = re.sub('\x0a', '', mpconfig.sline)
-                print(":".join("{:02x}".format(ord(c)) for c in mpconfig.sline))
-                self.shellText.append(mpconfig.sline)   # default - send ext proc text to shellText
-                self.shellText.moveCursor(self.cursor.End)
-                self.shellText.setFocus()
-                mpconfig.sline = ''
-
-    def procHandleState(self, state):
-        states = {
-            QProcess.NotRunning: 'Stopped',
-            QProcess.Starting: 'Starting',
-            QProcess.Running: 'Running',
-        }
-        state_name = states[state]
-        # reopen closed serial port so REPL will work
-        # if 'Stopped' in state_name:
-        #     self.serialport.open(QIODevice.ReadWrite)       # reopen serial port
-        #self.shellText.append(f"Process status: {state_name}")
-
-    def procFinished(self):
-        if self.setx.getFlagStr('SCRIPT_IS_RUNNING') == 'True':
-            self.shellText.append('\nScript ' + self.setx.getCurProjectPath() + '.' +
-                        self.setx.getCurTargetScript() + ' has Completed\n')
-            self.setx.setFlagStr('SCRIPT_IS_RUNNING', 'False')
-
-        if self.setx.getFlagStr('REMOVE_TARGET_FILE') == 'True':
-            self.setx.setFlagStr('REMOVE_TARGET_FILE', 'False')
-            QApplication.restoreOverrideCursor()
-
-    ### Run current script on target device (no download)
+    # Run current script on target device (file not downloaded)
     def runTargetScript(self):
         dialog = QFileDialog(self)
         dialog.setWindowTitle('Run Script on Target Device')
         dialog.setNameFilter('(*.py)')
-        dialog.setDirectory(self.setx.getCurProjectPath() + '.' + self.setx.getCurTargetScript())
+        # Use currently edited file
+        sname = self.tabsList.tabBar().tabText(self.tabsList.currentIndex())
+        sname = sname.replace('*', '')
+        if sname != 'untitled':
+            dialog.selectFile(sname)
+        dialog.setDirectory(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
         dialog.setFileMode(QFileDialog.ExistingFile)
         filename = None
         fname = ''
@@ -1361,12 +1271,12 @@ class pyEditor(QMainWindow):
         if len(fname) == 0:
             return
 
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         self.setx.setCurTargetScript(fname)
         self.shellText.append('\nStarting script: ' + fname + '\n')
         self.shellText.moveCursor(self.cursor.End)
-        #self.setx.setCurProjectPath(fname)
-        #self.setx.setScriptIsRunning(True)
-        self.mpCmds.run(fname, False, True)
+        self.mpCmds.run(fname, False, False)
+        QApplication.restoreOverrideCursor()
 
 
     def stopTargetScript(self):
@@ -1386,71 +1296,88 @@ class pyEditor(QMainWindow):
         filename = dialog.selectedFiles()
         fname = str(filename[0])
 
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         if len(fname) > 0:
             self.mpCmds.put(fname)
-        # proc = 'ampy -p ' + self.setx.getSerialPort()
-        # proc += ' -b ' + self.setx.getBaudRate()       # add baudrate
-        # proc += ' put ' + fname
-        # self.startProcess(proc)
-        # if self.extProc.waitForFinished(10000):
+            self.viewTargetFiles()
+        QApplication.restoreOverrideCursor()
 
-        self.viewTargetFiles()
+    def uploadScript(self, filename):
+        if not filename:
+            vLayout = QVBoxLayout()
+            self.upldDialog = QDialog()
+            self.upldDialog.setWindowFlags(self.upldDialog.windowFlags() | Qt.Popup)
+            self.upldDialog.setWindowFlags(self.upldDialog.windowFlags() & ~(Qt.WindowContextHelpButtonHint |
+                                                                             Qt.WindowMinMaxButtonsHint))
+            self.upldDialog.setWindowModality(Qt.ApplicationModal)
+            self.upldDialog.setMinimumWidth(450)
 
-    def uploadScript(self):
-        vLayout = QVBoxLayout()
-        self.upldDialog = QDialog()
-        self.upldDialog.setWindowFlags(self.upldDialog.windowFlags() | Qt.Popup)
-        self.upldDialog.setWindowFlags(self.upldDialog.windowFlags() & ~(Qt.WindowContextHelpButtonHint |
-                                                                         Qt.WindowMinMaxButtonsHint))
-        self.upldDialog.setWindowModality(Qt.ApplicationModal)
-        self.upldDialog.setMinimumWidth(450)
+            self.upldTree = QTreeWidget()
+            self.upldTree.setColumnCount(1)
+            self.upldTree.move(0, 0)
+            self.upldDialog.setWindowTitle("Upload File from Target Device")
 
-        self.upldTree = QTreeWidget()
-        self.upldTree.setColumnCount(1)
-        self.upldTree.move(0, 0)
-        self.upldDialog.setWindowTitle("Upload File from Target Device")
+            self.upldTree.setHeaderItem(QTreeWidgetItem([self.setx.getSerialPort()]))
+            items = []
+            for i in range(len(self.TargetFileList)):
+                l1 = QTreeWidgetItem([self.TargetFileList[i]])
+                items.append(l1)
 
-        self.upldTree.setHeaderItem(QTreeWidgetItem([self.setx.getSerialPort()]))
-        items = []
-        for i in range(len(self.TargetFileList)):
-            l1 = QTreeWidgetItem([self.TargetFileList[i]])
-            items.append(l1)
+            self.upldTree.addTopLevelItems(items)
+            if len(items) > 0:
+                self.upldTree.setCurrentItem(items[0])  # highlight first item
 
-        self.upldTree.addTopLevelItems(items)
-        if len(items) > 0:
-            self.upldTree.setCurrentItem(items[0])  # highlight first item
+            self.upldTree.expandAll()
+            vLayout.addWidget(self.upldTree)
 
-        self.upldTree.expandAll()
-        vLayout.addWidget(self.upldTree)
+            hLayout = QHBoxLayout()
+            hLayout.addStretch()
+            btn_ok = QPushButton("OK")
+            btn_ok.clicked.connect(self.upldDialogAccept)
+            btn_ok.setToolTip('Accept File')
+            btn_ok.setMaximumWidth(100)
+            hLayout.addWidget(btn_ok, 1, Qt.AlignHCenter);
+            self.upldTree.itemDoubleClicked.connect(self.upldDialogAccept)
+            hLayout.addWidget(btn_ok)
+            btn_cancel = QPushButton("Cancel")
+            btn_cancel.clicked.connect(self.upldDialogCancel)
+            btn_cancel.setToolTip('Cancel')
+            btn_cancel.setMaximumWidth(100)
+            btn_cancel.setContentsMargins(0, 0, 0, 0)
+            hLayout.addWidget(btn_cancel, 1, Qt.AlignHCenter)
+            hLayout.addStretch()
+            hLayout.setSpacing(0)
+            vLayout.addLayout(hLayout)
+            self.upldDialog.setLayout(vLayout)
+            self.upldTree.setFocus()
+            self.upldDialog.exec_()
 
-        hLayout = QHBoxLayout()
-        hLayout.addStretch()
-        btn_ok = QPushButton("OK")
-        btn_ok.clicked.connect(self.upldDialogAccept)
-        btn_ok.setToolTip('Accept File')
-        btn_ok.setMaximumWidth(100)
-        hLayout.addWidget(btn_ok, 1, Qt.AlignHCenter);
-        self.upldTree.itemDoubleClicked.connect(self.upldDialogAccept)
-        hLayout.addWidget(btn_ok)
-        btn_cancel = QPushButton("Cancel")
-        btn_cancel.clicked.connect(self.upldDialogCancel)
-        btn_cancel.setToolTip('Cancel')
-        btn_cancel.setMaximumWidth(100)
-        btn_cancel.setContentsMargins(0, 0, 0, 0)
-        hLayout.addWidget(btn_cancel, 1, Qt.AlignHCenter)
-        hLayout.addStretch()
-        hLayout.setSpacing(0)
-        vLayout.addLayout(hLayout)
-        self.upldDialog.setLayout(vLayout)
-        self.upldTree.setFocus()
-        self.upldDialog.exec_()
+            # dialog has closed - check if the entry was accepted or rejected
+            if self.upldDialog.result() == QDialog.Rejected:
+                return
 
-        # dialog has closed - check if the entry was accepted or rejected
-        if self.upldDialog.result() == QDialog.Accepted:
-            data = self.mpCmds.get(self.upldTree.currentItem().text(0))
-            if len(data) > 0:
-                data = str(data, 'utf-8')   # convert bytes to string
-                mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(data.replace(tab, "    "))
+            filename = self.upldTree.currentItem().text(0)
+
+        # check if file is already opened on current or another tab
+        dup_fname = self.searchTabNames(filename, True)
+        # check if destination tab already has text
+        txt = mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()
+        if len(txt) > 0:
+            if dup_fname == -1:
+                self.create_new_tab(filename)
+            else:
+                reply = QMessageBox.question(self, 'Upload Target File', 'Do you want to overwrite existing text?',
+                                                   QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if reply == QMessageBox.No:
+                    return
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        data = self.mpCmds.get(filename)
+        data = str(data, 'utf-8')  # convert bytes to string
+        mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(data.replace(tab, "    "))
+        self.setModified(False)
+        self.tabsList.tabBar().setTabText(self.tabsList.currentIndex(), filename)  # update editor tab text
+        QApplication.restoreOverrideCursor()
 
     def upldDialogCancel(self):
         self.upldDialog.reject()  #  .setResult(0)
@@ -1459,6 +1386,22 @@ class pyEditor(QMainWindow):
     def upldDialogAccept(self):
         self.upldDialog.accept()
         self.upldDialog.close()
+
+    # Serach for duplicate file names in tab text
+    # fname = filename string (case insensitive). if change_tab is True, dup tab will be selected
+    # return - tab # or -1 if duplicate not found
+    def searchTabNames(self, fname, change_tab=False):
+        fnd = -1
+        for i in range(self.tabsList.count()):
+            tn = self.tabsList.tabBar().tabText(i)
+            tn = tn.replace('*', '')
+            if tn.lower() == fname.lower():
+                if change_tab:      # change tab to matched name
+                    self.tabsList.setCurrentIndex(i)
+                    mpconfig.currentTabIndex = i
+                fnd = i
+                break
+        return fnd
 
     # remove (delete) target script file
     def removeScript(self):
@@ -1868,21 +1811,14 @@ class pyEditor(QMainWindow):
         self.fdialog.exec()                 # launch the file name dialog
 
         # check if the filename already exists in another tab
-        dup_tab_name = False
-        for i in range(self.tabsList.count()):
-            tn = self.tabsList.tabBar().tabText(i)
-            if tn.lower() == self.newf_name.lower():
-                self.tabsList.setCurrentIndex(i)
-                mpconfig.currentTabIndex = i
-                dup_tab_name = True
-                break
-        if dup_tab_name or mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() != '':
+        dup_tab = self.searchTabNames(self.newf_name, True)
+        if dup_tab == -1 and mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() != '':
             self.create_new_tab(self.newf_name)     # create
         self.change_text_editor(mpconfig.currentTabIndex)
         self.setModified(False)
         mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(self.cursor.End)
         self.statusBar().showMessage("new File (" + self.newf_name + ") created.")
-        self.tabsList.tabBar().setTabText(self.tabsList.currentIndex(), self.newf_name) # update editor tab text
+        self.tabsList.tabBar().setTabText(self.tabsList.currentIndex(), self.newf_name)     # update editor tab text
         mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
         self.bookmarks.clear()
         self.setWindowTitle('new File[*]')
@@ -1902,56 +1838,56 @@ class pyEditor(QMainWindow):
         if os.path.isfile(path):
             inFile = QFile(path)
             if inFile.open(QFile.ReadWrite | QFile.Text):
-                text = inFile.readAll()
-                text = str(text, encoding='utf8')   # encode bytes to ascii string (Python3 method)
-                # if file is not currently being edited, create new tab & editor for text
-                files = self.getFilesInDir(self.setx.getCurProjectPath() +
-                                           '/' + self.setx.getCurProjectName())
-                dupFileFound = False
-                for i in range(len(files)):
-                    if files[i] == self.tabsList.tabBar().tabText(i):
-                        dupFileFound = True
-                if not dupFileFound and mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() != '':
+                text = inFile.readAll()         # get bytes from file
+                text = str(text, encoding='utf8')   # convert bytes to string
+                # files = self.getFilesInDir(self.setx.getCurProjectPath() +
+                                           # '/' + self.setx.getCurProjectName())
+                fn = os.path.basename(path)
+                dup_fname = self.searchTabNames(fn, True)
+                # if file is not currently being edited and the current editor is not empty, create new editor tab
+                if dup_fname == -1 and mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() != '':
                     self.create_new_tab(path)
                 if mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() == '':
                     mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(text.replace(tab, "    "))
                     self.setModified(False)
                 self.setCurrentFile(path, False)
                 self.findBookmarks()
-                self.statusBar().showMessage("File '" + path + "' loaded.")
+                self.statusBar().showMessage('File ' + path + ' loaded.')
                 mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
             else:
-                print('Opening file "' + path + '" failed!')
+                print('Failed opening file: ' + path)
 
     ### Open File
     def openFile(self, path=None):
         if not path:
-            path, _ = QFileDialog.getOpenFileName(self, "Open File", self.setx.getCurProjectPath(),
-                                                  "Python Files (*.py);; all Files (*)")
+            path, _ = QFileDialog.getOpenFileName(self, "Open File", self.setx.getCurProjectPath() + '/' +
+                                                  self.setx.getCurProjectName(), "Python Files (*.py);; all Files (*)")
         if path:
             self.openFileOnStart(path)
 
     ### Save file
     def fileSave(self):
-        if self.filename != "" and self.filename != 'untitled':
-            file = QFile(self.filename)
+        fpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
+        fn = self.tabsList.tabBar().tabText(self.tabsList.currentIndex())   # filename of current editor tab
+        fn = fn.replace('*', '')
+        fpath += '/' + fn
+        if fn and fn != 'untitled':
+            file = QFile(fpath)
             if not file.open(QFile.WriteOnly | QFile.Text):
-                QMessageBox.warning(self, "Error",
-                                    "Cannot write file %s:\n%s." % (self.filename, file.errorString()))
+                QMessageBox.warning(self, "Error!",
+                                    "Cannot write file %s:\n%s." % (fpath, file.errorString()))
                 return
 
-            outstr = QTextStream(file)
             QApplication.setOverrideCursor(Qt.WaitCursor)
+            outstr = QTextStream(file)
             outstr << mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()   # write text to file & close
-            QApplication.restoreOverrideCursor()
             self.setModified(False)
-            self.fname = QFileInfo(self.filename).fileName()
-            #self.setWindowTitle(self.fname + "[*]")
-            self.statusBar().showMessage("File saved.")
-            self.setCurrentFile(self.filename, False)
+            #self.fname = QFileInfo(fpath.fileName())
+            self.statusBar().showMessage('File ' + fn + ' saved.')
+            self.setCurrentFile(fpath, False)
             mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
             self.showDirectoryTree(self.setx.getCurProjectPath())
-
+            QApplication.restoreOverrideCursor()
         else:
             self.fileSaveAs()
 
@@ -1980,21 +1916,17 @@ class pyEditor(QMainWindow):
         else:
             e.ignore()
 
-    ### ask to save
+    ### ask to save if text has changed in current editor tab
     def maybeSave(self):
         if not mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged:
             return True
-        # if not self.isModified():
-        #     return True
 
         if self.filename.startswith(':/'):      # ???
             return True
-
         ret = QMessageBox.question(self, "Message",
                                    "<h4><p>The document was modified.</p>\n" \
                                    "<p>Do you want to save changes?</p></h4>",
                                    QMessageBox.Yes | QMessageBox.Discard | QMessageBox.Cancel)
-
         if ret == QMessageBox.Yes:
             if self.filename == "":
                 self.fileSaveAs()
@@ -2002,10 +1934,8 @@ class pyEditor(QMainWindow):
             else:
                 self.fileSave()
                 return True
-
         elif ret == QMessageBox.Cancel:
             return False
-
         return True
 
     def about(self):
@@ -2018,19 +1948,19 @@ class pyEditor(QMainWindow):
                         """
         self.infobox(title, message)
 
-    def readData(self, cmd):
-        self.shellText.clear()
-        dname = QFileInfo(self.filename).filePath().replace(QFileInfo(self.filename).fileName(), "")
-        self.statusBar().showMessage(str(dname))
-        QProcess().execute("cd '" + dname + "'")
-        self.process.start(cmd, ['-u', dname + self.strippedName(self.filename)])
-
-    def killPython(self):
-        if (self.mypython == "3"):
-            cmd = "killall python3"
-        else:
-            cmd = "killall python"
-        self.readData(cmd)
+    # def readData(self, cmd):
+    #     self.shellText.clear()
+    #     dname = QFileInfo(self.filename).filePath().replace(QFileInfo(self.filename).fileName(), "")
+    #     self.statusBar().showMessage(str(dname))
+    #     QProcess().execute("cd '" + dname + "'")
+    #     self.process.start(cmd, ['-u', dname + self.strippedName(self.filename)])
+    #
+    # def killPython(self):
+    #     if (self.mypython == "3"):
+    #         cmd = "killall python3"
+    #     else:
+    #         cmd = "killall python"
+    #     self.readData(cmd)
 
     def commentBlock(self):
         mpconfig.editorList[mpconfig.currentTabIndex].copy()
@@ -2230,8 +2160,8 @@ class pyEditor(QMainWindow):
     def document(self):
         return mpconfig.editorList[mpconfig.currentTabIndex].document
 
-    def isModified(self):
-        return mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged
+    # def isModified(self):
+    #     return mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged
 
     def setModified(self, modified):
         mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = modified
@@ -2282,7 +2212,7 @@ class pyEditor(QMainWindow):
         if self.filename:
             fname = self.strippedName(self.filename)
             if modified:
-                fname += " *"
+                fname += "*"
             ttip = fname
             if len(fname) > 11:
                 fname = fname[:8] + "..."
@@ -2506,7 +2436,7 @@ if __name__ == '__main__':
     app = QApplication(argv)
     translator = QTranslator(app)
     locale = QLocale.system().name()
-    print('locale = ' + locale)
+    # print('locale = ' + locale)
     path = QLibraryInfo.location(QLibraryInfo.TranslationsPath)
     translator.load('qt_%s' % locale, path)
     app.installTranslator(translator)

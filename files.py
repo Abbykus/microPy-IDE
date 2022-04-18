@@ -305,6 +305,7 @@ class Files(object):
         If stream_output is True(default) then return None and print outputs to
         stdout without buffering.
         """
+        self._mpboard.ignoreSerial = True
         self._mpboard.enter_raw_repl()
         out = None
         if stream_output:
@@ -318,4 +319,5 @@ class Files(object):
             with open(filename, "rb") as infile:
                 self._mpboard.exec_raw_no_follow(infile.read())
         self._mpboard.exit_raw_repl()
+        self._mpboard.ignoreSerial = False
         return out

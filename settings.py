@@ -6,7 +6,7 @@ class Settings:
     def __init__(self):
         self.settings = QSettings("Abbykus", "microPy")
         # set current application path
-        self.settings.setValue('APP_PATH', QFileInfo.path(QFileInfo(QCoreApplication.arguments()[0])))
+        self.settings.setValue('APP_PATH', os.getcwd())
         # set OS type (linux, windoze, MacOS, etc.)
         self.settings.setValue('OS_TYPE', sys.platform)     # OS type (Linux, windoze, etc.)
         # set project path default if not already defined
