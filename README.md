@@ -72,9 +72,9 @@ First set the serial port name, on Linux typically /dev/ttyUSB0. Also set the ba
 Reset the target board and you should expect to see a '>>>' prompt in the interactive shell terminal indicating the interactive mode. You can enter MicroPython commands or scripts manually.
 
 ## TODO
-- Add MacOS & Windows support.
+- Add MacOS & Windows support (COM ports, etc.)
 - Create microPython developer docset for Zeal.
-- 
+- Create installation packages for Linux, Mac, & Windows.
 
 
 
