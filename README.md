@@ -1,6 +1,6 @@
 # ***microPy-IDE***
 
-## STATUS: Beta release version 0.1.0 04/17/2022.
+## STATUS: Beta release version 0.1.0 04/18/2022.
 
 The *microPy-IDE* is a development environment for the [microPython language](https://micropython.org/) which is a subset of Python 3 and is optimised to run on microcontrollers and in constrained environments. 
 
@@ -53,6 +53,11 @@ Open a terminal and type **pip3 install pyqt5 pyqt5-tools**
 
 After installing *zeal*, launch it and goto ***tools->docsets*** and add Python language support.
 
+## microPy-IDE Install & Run
+Install *microPy-IDE* by cloning this project to your local machine. 
+Open a terminal and navigate to the microPy-IDE folder.
+Type ***python3 microPy.py***.
+
 ## MicroPython Firmware for the QDEV Boards
 All versions of the Abbykus QDEV boards are capable of running the MicroPython language. 
 Please see [MicroPython-python for Microcontrollers](https://micropython.org/) for more information.
@@ -65,7 +70,10 @@ Once you have installed MicroPython on the QDEV board you can connect to the boa
 First set the serial port name, on Linux typically /dev/ttyUSB0. Also set the baudrate to 115200.
 Reset the target board and you should expect to see a '>>>' prompt in the interactive shell terminal indicating the interactive mode. You can enter MicroPython commands or scripts manually.
 
-
+## TODO
+- Add Windows & MacOS support.
+- Create microPython developer docset for Zeal.
+- 
 
 
 
