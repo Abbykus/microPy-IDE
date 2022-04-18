@@ -1,6 +1,6 @@
 # ***microPy-IDE***
 
-## STATUS: Beta release version 0.0.2 04/04/2022.
+## STATUS: Beta release version 0.1.0 04/18/2022.
 
 The *microPy-IDE* is a development environment for the [microPython language](https://micropython.org/) which is a subset of Python 3 and is optimised to run on microcontrollers and in constrained environments. 
 
@@ -45,9 +45,6 @@ If the version of Python is lower than 3.6 please consider upgrading to the late
 ### Install PYQT5 GUI Widgets Toolkit
 Open a terminal and type **pip3 install pyqt5 pyqt5-tools**
 
-### Install Adafruit Ampy
-The Adafruit 'ampy' application provides communication with and control of the microPython target device (QDEV board). See [MicroPython Basics](https://cdn-learn.adafruit.com/downloads/pdf/micropython-basics-load-files-and-run-code.pdf) for installation instructions.
-
 ### Install Zeal Offline Language Reference (optional)
 - *Linux / MacOS*
   - Launch terminal and type **sudo apt install zeal**
@@ -55,6 +52,12 @@ The Adafruit 'ampy' application provides communication with and control of the m
 - *Windows*
 
 After installing *zeal*, launch it and goto ***tools->docsets*** and add Python language support.
+
+## microPy-IDE Install & Run
+Install *microPy-IDE* by cloning this project to your local machine. Click on the *Code* button and download the Zip file.
+Unpack the Zip file in a folder of your choice.
+Open a terminal and navigate to the microPy-IDE-master folder.
+Type ***python3 microPy.py***.
 
 ## MicroPython Firmware for the QDEV Boards
 All versions of the Abbykus QDEV boards are capable of running the MicroPython language. 
@@ -68,7 +71,10 @@ Once you have installed MicroPython on the QDEV board you can connect to the boa
 First set the serial port name, on Linux typically /dev/ttyUSB0. Also set the baudrate to 115200.
 Reset the target board and you should expect to see a '>>>' prompt in the interactive shell terminal indicating the interactive mode. You can enter MicroPython commands or scripts manually.
 
-
+## TODO
+- Add Windows & MacOS support.
+- Create microPython developer docset for Zeal.
+- 
 
 
 
