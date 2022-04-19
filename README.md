@@ -37,7 +37,7 @@ If the version of Python is lower than 3.6 please consider upgrading to the late
 
 ### Install PIP3
 - *Linux / MacOS*
-  - Launch terminal and type **sudo apt install python3-pip**
+  - Launch a terminal (CTRL-ALT-T) and type **sudo apt install python3-pip**
 
 - *Windows*
   - See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
@@ -47,7 +47,7 @@ Open a terminal and type **pip3 install pyqt5 pyqt5-tools**
 
 ### Install Zeal Offline Language Reference (optional)
 - *Linux / MacOS*
-  - Launch terminal and type **sudo apt install zeal**
+  - Launch terminal (CTRL-ALT-T) and type **sudo apt install zeal**
 
 - *Windows*
 
@@ -72,9 +72,9 @@ First set the serial port name, on Linux typically /dev/ttyUSB0. Also set the ba
 Reset the target board and you should expect to see a '>>>' prompt in the interactive shell terminal indicating the interactive mode. You can enter MicroPython commands or scripts manually.
 
 ## TODO
-- Add Windows & MacOS support.
+- Add MacOS & Windows support (COM ports, etc.)
 - Create microPython developer docset for Zeal.
-- 
+- Create installation packages for Linux, Mac, & Windows.
 
 
 
