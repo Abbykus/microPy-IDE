@@ -1074,13 +1074,17 @@ class pyEditor(QMainWindow):
     #     self.showDirectoryTree(newpath)
 
     # the action executed when menu is clicked
-    def display_selection(self):
-        column = self.targetFileViewer.currentColumn()
-        text = self.targetFileViewer.currentItem().text(column)
-        print("right-clicked item is " + text)
+    # def display_selection(self):
+    #     column = self.targetFileViewer.currentColumn()
+    #     text = self.targetFileViewer.currentItem().text(column)
+    #     print("right-clicked item is " + text)
 
     def remove_tab(self, index):
-        self.maybeSave()        # check if text in tab (editor) needs to be saved
+        if index != self.tabsList.currentIndex():
+            self.tabsList.setCurrentIndex(index)
+            self.change_text_editor(index)       # select & highlight tab to remove
+        if not self.maybeSave():    # check if text in tab (editor) needs to be saved
+            return
         # don't delete last tab
         if index < self.tabsList.count() and self.tabsList.count() > 1:
             self.tabsList.removeTab(index)
@@ -1088,6 +1092,12 @@ class pyEditor(QMainWindow):
             del mpconfig.highlighterList[index]
             del mpconfig.numberbarList[index]
             mpconfig.currentTabIndex = self.tabsList.currentIndex()
+        elif self.tabsList.count() == 1:
+            mpconfig.currentTabIndex = 0
+            mpconfig.editorList[0].clear()
+            mpconfig.editorList[0].textHasChanged = False
+            self.tabsList.tabBar().setTabText(0, 'untitled')
+            self.tabsList.tabBar().setTabToolTip(0, 'untitled')
 
     def create_new_tab(self, tab_title):
         new_tab = QWidget()
@@ -1162,10 +1172,12 @@ class pyEditor(QMainWindow):
 
     # text in the editor of the current selected tab has changed
     def onTextHasChanged(self):
-        if self.setx.getFlagStr('IGNORE_TEXT_CHANGED') == 'True':
-            return
-        else:
-            self.setModified(True)
+        mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = True
+        tabtxt = self.tabsList.tabText(self.tabsList.currentIndex())
+        if not tabtxt.endswith('*'):
+            tabtxt += '*'
+            self.tabsList.setTabText(self.tabsList.currentIndex(), tabtxt)
+            self.tabsList.setTabToolTip(self.tabsList.currentIndex(), tabtxt)
 
     # tab selection has changed
     def change_text_editor(self, index):
@@ -1198,7 +1210,7 @@ class pyEditor(QMainWindow):
     # Project File Viewer was double clicked
     def projectFileViewerDblClicked(self, index):
         item_text = self.projectFileViewer.currentItem().text(0)
-        print(item_text)
+        # print(item_text)
         if len(item_text) > 0:
             path = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName() + '/' + item_text
             self.openFile(path)
@@ -1375,7 +1387,8 @@ class pyEditor(QMainWindow):
         data = self.mpCmds.get(filename)
         data = str(data, 'utf-8')  # convert bytes to string
         mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(data.replace(tab, "    "))
-        self.setModified(False)
+        mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = False
+        # self.setModified(False)
         self.tabsList.tabBar().setTabText(self.tabsList.currentIndex(), filename)  # update editor tab text
         QApplication.restoreOverrideCursor()
 
@@ -1605,7 +1618,7 @@ class pyEditor(QMainWindow):
             tc = mpconfig.editorList[mpconfig.currentTabIndex].textCursor()
             tc.select(QTextCursor.WordUnderCursor)
             rtext = tc.selectedText()
-            print(rtext)
+            # print(rtext)
         #            mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.StartOfWord, QTextCursor.MoveAnchor)
         #            mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.EndOfWord, QTextCursor.KeepAnchor)
         else:
@@ -1783,7 +1796,7 @@ class pyEditor(QMainWindow):
         action = self.sender()
         if action:
             myfile = action.data()
-            print('open recent file: ' + myfile)
+            # print('open recent file: ' + myfile)
             if (self.maybeSave()):
                 if QFile.exists(myfile):
                     self.openFileOnStart(myfile)
@@ -1815,7 +1828,8 @@ class pyEditor(QMainWindow):
         if dup_tab == -1 and mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() != '':
             self.create_new_tab(self.newf_name)     # create
         self.change_text_editor(mpconfig.currentTabIndex)
-        self.setModified(False)
+        mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = False
+        # self.setModified(False)
         mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(self.cursor.End)
         self.statusBar().showMessage("new File (" + self.newf_name + ") created.")
         self.tabsList.tabBar().setTabText(self.tabsList.currentIndex(), self.newf_name)     # update editor tab text
@@ -1868,6 +1882,7 @@ class pyEditor(QMainWindow):
     ### Save file
     def fileSave(self):
         fpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
+        # filename is kept on tab text
         fn = self.tabsList.tabBar().tabText(self.tabsList.currentIndex())   # filename of current editor tab
         fn = fn.replace('*', '')
         fpath += '/' + fn
@@ -1896,18 +1911,20 @@ class pyEditor(QMainWindow):
         fn, _ = QFileDialog.getSaveFileName(self, "Save as...", self.filename,
                                             "Python files (*.py)")
         if not fn:
-            print("Error saving")
+            # print("Error saving file")
             return False
 
         lfn = fn.lower()
         if not lfn.endswith('.py'):
             fn += '.py'
 
-        self.filename = fn
-        self.fname = QFileInfo(QFile(fn).fileName())
+        fpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
+        fn = os.path.basename(fn)
+        self.tabsList.setTabText(self.tabsList.currentIndex(), fn)
+        self.tabsList.setTabToolTip(self.tabsList.currentIndex(), fn)
         self.fileSave()
-        self.showDirectoryTree(self.setx.getCurProjectPath())
-        self.setx.setCurProjectScript(self.fname)
+        self.showDirectoryTree(fpath)
+        self.setx.setCurProjectScript(fn)
 
     def closeEvent(self, e):
         self.writeSettings()
@@ -1930,7 +1947,7 @@ class pyEditor(QMainWindow):
         if ret == QMessageBox.Yes:
             if self.filename == "":
                 self.fileSaveAs()
-                return False
+                return True
             else:
                 self.fileSave()
                 return True
@@ -2051,7 +2068,7 @@ class pyEditor(QMainWindow):
 
     def handleQuit(self):
         if self.maybeSave():
-            print("Goodbye ...")
+            # print("Goodbye ...")
             app.quit()
 
     def match_left(self, block, character, start, found):
@@ -2220,21 +2237,20 @@ class pyEditor(QMainWindow):
         self.tabsList.setTabText(self.tabsList.currentIndex(), fname)
         self.tabsList.tabBar().setTabToolTip(self.tabsList.currentIndex(), ttip)
 
-        files = self.setx.getRecentFileList()
-
-        if files:
+        _files = self.setx.getRecentFileList()
+        if _files:
             try:
-                files.remove(fileName)
+                _files.remove(fileName)
             except ValueError:
                 pass
 
             if not fileName == "/tmp/tmp.py":
-                files.insert(0, fileName)
+                _files.insert(0, fileName)
 
             maxf = int(self.setx.getMaxRecentFiles())
-            del files[maxf:]
+            del _files[maxf:]
 
-            self.setx.setRecentFileList(files)
+            self.setx.setRecentFileList(_files)
 
         for widget in QApplication.topLevelWidgets():
             if isinstance(widget, pyEditor):
@@ -2242,16 +2258,16 @@ class pyEditor(QMainWindow):
 
     def updateRecentFileActions(self):
         mytext = ""
-        files = self.setx.getRecentFileList()
-        if not files:
+        _files = self.setx.getRecentFileList()
+        if not _files:
             numRecentFiles = 0
         else:
-            numRecentFiles = min(len(files), int(self.setx.getMaxRecentFiles()))
+            numRecentFiles = min(len(_files), int(self.setx.getMaxRecentFiles()))
 
         for i in range(numRecentFiles):
-            text = "&%d %s" % (i + 1, self.strippedName(files[i]))
+            text = "&%d %s" % (i + 1, self.strippedName(_files[i]))
             self.recentFileActs[i].setText(text)
-            self.recentFileActs[i].setData(files[i])
+            self.recentFileActs[i].setData(_files[i])
             self.recentFileActs[i].setVisible(True)
             self.recentFileActs[i].setIcon(QIcon.fromTheme("gnome-mime-text-x-python"))
 
