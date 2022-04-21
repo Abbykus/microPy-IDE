@@ -69,16 +69,12 @@ import time
 from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 from PyQt5.QtCore import QIODevice, QBuffer, QByteArray
 from PyQt5.QtGui import QTextCursor
-import settings
-import mpconfig
-from threading import Thread
+# import settings
+# import mpconfig
+# from threading import Thread
 
-stdout = sys.stdout.buffer
+# stdout = sys.stdout.buffer
 
-def stdout_write_bytes(b):
-    b = b.replace(b"\x04", b"")
-    stdout.write(b)
-    stdout.flush()
 
 class PyboardError(BaseException):
     pass
@@ -171,12 +167,21 @@ class Pyboard:
             #     print('manufacturer =', info.manufacturer())
             #     print('')
             #serialport.readyRead.connect(self.serial_read_bytes)
-        self.serialport = QSerialPort()
-        self.setSerialPortName(device)
-        self.setSerialPortBaudrate(baud)
-        self.serialport.setFlowControl(QSerialPort.HardwareControl)
-        self.serialport.readyRead.connect(self.serialReadyRead)
-        self.serialport.open(QIODevice.ReadWrite)
+        # device = '192.168.4.1'
+
+        if device and device[0].isdigit() and device[-1].isdigit() and device.count('.') == 3:
+            # device looks like an IP address
+            self.serialport = TelnetToSerial(device, user, password, read_timeout=10)
+        else:
+            self.serialport = QSerialPort()
+            self.setSerialPortName(device)
+            self.setSerialPortBaudrate(baud)
+            self.serialport.setFlowControl(QSerialPort.HardwareControl)
+            self.serialport.readyRead.connect(self.serialReadyRead)
+            if self.serialport.open(QIODevice.ReadWrite):
+                self.shelltext.append('Serial port ' + device + ' is connected to target.')
+            else:
+                self.shelltext.append('Serial port ' + device + ' cannot connect to target!')
 
 
             # delayed = False
@@ -211,10 +216,18 @@ class Pyboard:
             # if delayed:
             #     print('')
 
+    def stdout_write_bytes(self, b):
+        b = b.replace(b"\x04", b"")
+        self.shelltext.append(b)
+        #stdout.write(b)
+        #stdout.flush()
+
     def serialWrite(self, databytes):
         self.serialport.write(databytes)
 
     def hardReset(self):
+        if not self.serialport.isOpen():
+            return b''
         self.ignoreSerial = True
         self.serialport.flush()
         self.serialport.setDataTerminalReady(False)
@@ -287,22 +300,25 @@ class Pyboard:
     # If ending is None, any pattern is matched
     def read_until(self, min_num_bytes, ending, timeout=1):
         data = b''
-        outahere = False
-        timeout_count = timeout * 100
-        while True:
-            self.serialport.waitForReadyRead(10)
-            while self.serialport.bytesAvailable() > 0:
-                data += self.serialport.read(min_num_bytes)
-                if data.endswith(ending):
-                    outahere = True
+        if self.serialport.isOpen():
+            outahere = False
+            timeout_count = timeout * 100
+            while True:
+                self.serialport.waitForReadyRead(10)
+                while self.serialport.bytesAvailable() > 0:
+                    data += self.serialport.read(min_num_bytes)
+                    if data.endswith(ending):
+                        outahere = True
+                        break
+                timeout_count -= 1
+                if outahere or timeout_count <= 0:
                     break
-            timeout_count -= 1
-            if outahere or timeout_count <= 0:
-                break
         return data
 
     # Enter the microPython raw REPL mode to run a script on the target
     def enter_raw_repl(self):
+        if not self.serialport.isOpen():
+            return b'Failed - serialport not open'
         # ctrl-C twice: interrupt any running program
         self.serialport.write(b'\r\x03')
         time.sleep(0.1)
@@ -350,7 +366,8 @@ class Pyboard:
         return data
 
     def exit_raw_repl(self):
-        self.serialport.write(b'\r\x02') # ctrl-B: enter friendly REPL
+        if self.serialport.isOpen():
+            self.serialport.write(b'\r\x02')    # ctrl-B: enter friendly REPL
 
     def follow(self, timeout, data_consumer=None):
         # wait for normal output
@@ -369,6 +386,8 @@ class Pyboard:
         return data, data_err
 
     def exec_raw_no_follow(self, command):
+        if not self.serialport.isOpen():
+            return b''
         if isinstance(command, bytes):
             command_bytes = command
         else:
@@ -396,9 +415,11 @@ class Pyboard:
         return self.follow(timeout, data_consumer)
 
     def exec_(self, command, stream_output=False):
+        if not self.serialport.isOpen():
+            return b'Failed - serialport not open'
         data_consumer = None
         if stream_output:
-            data_consumer = stdout_write_bytes
+            data_consumer = self.stdout_write_bytes
         ret, ret_err = self.exec_raw(command, data_consumer=data_consumer)
         if ret_err:
             print('exception ', ret, ret_err)
@@ -461,7 +482,7 @@ def execfile(filename, device='/dev/ttyUSB0', baudrate=115200, user='micro', pas
     pyb = Pyboard(device, baudrate, user, password)
     pyb.enter_raw_repl()
     output = pyb.execfile(filename)
-    stdout_write_bytes(output)
+    pyb.stdout_write_bytes(output)
     pyb.exit_raw_repl()
     pyb.close()
 
@@ -482,7 +503,7 @@ def main():
         #try:
         pyb = Pyboard(args.device, args.baudrate, args.user, args.password, args.wait)
         pyb.enter_raw_repl()
-        ret, ret_err = pyb.exec_raw(buf, timeout=None, data_consumer=stdout_write_bytes)
+        ret, ret_err = pyb.exec_raw(buf, timeout=None, data_consumer=pyb.stdout_write_bytes)
         pyb.exit_raw_repl()
         pyb.close()
         # except PyboardError as er:
@@ -505,7 +526,7 @@ def main():
     if args.follow or (args.command is None and len(args.files) == 0):
         #try:
         pyb = Pyboard(args.device, args.baudrate, args.user, args.password, args.wait)
-        ret, ret_err = pyb.follow(timeout=None, data_consumer=stdout_write_bytes)
+        ret, ret_err = pyb.follow(timeout=None, data_consumer=pyb.stdout_write_bytes)
         pyb.close()
         # except PyboardError as er:
         #     print(er)
