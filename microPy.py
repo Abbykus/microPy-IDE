@@ -40,7 +40,7 @@ lineHighlightColor = QColor("#232323")
 border_outer_color = QColor("#ef4343")
 tab = chr(9)
 eof = "\n"
-iconsize = QSize(16, 16)
+iconsize = QSize(24, 24)
 
 
 #####################################################################
@@ -388,11 +388,11 @@ class pyEditor(QMainWindow):
         self.uncommentBlockAct = QAction("Uncomment Block (F7)", self, shortcut="F7", triggered=self.uncommentBlock)
         self.uncommentBlockAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/uncommentBlock"))
 
-        self.printPreviewAct = QAction("Print Preview (Ctl+Shf+P)", self, shortcut="Ctrl+Shift+P", triggered=self.handlePrintPreview)
-        self.printPreviewAct.setIcon(QIcon.fromTheme("document-print-preview"))
+        self.printPreviewAct = QAction("Print Preview (Ctl+Shft+P)", self, shortcut="Ctrl+Shift+P", triggered=self.handlePrintPreview)
+        self.printPreviewAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/print_preview"))
 
         self.printAct = QAction("Print", self, shortcut=QKeySequence.Print, triggered=self.handlePrint)
-        self.printAct.setIcon(QIcon.fromTheme("document-print"))
+        self.printAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/printer"))
 
         self.exitAct = QAction("Exit", self, shortcut=QKeySequence.Quit, triggered=self.handleQuit)
         self.exitAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/quit"))
@@ -434,7 +434,7 @@ class pyEditor(QMainWindow):
         self.removeScriptAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/delete"))
 
         self.newFolderAct = QAction("&New Target Folder", self, shortcut='', triggered=self.newTargetFolder)
-        self.newFolderAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/folder"))
+        self.newFolderAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/folder_add"))
 
         self.delFolderAct = QAction("&Remove Target Folder", self, shortcut='', triggered=self.rmTargetFolder)
         self.delFolderAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/folder_del"))
@@ -493,7 +493,7 @@ class pyEditor(QMainWindow):
         tb.addSeparator()
 
         ### about buttons
-        tb.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/info2"), "&About microPy", self.about)
+        tb.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/about"), "&About microPy", self.about)
         tb.addSeparator()
         tb.addSeparator()
         tb.addSeparator()
@@ -709,7 +709,7 @@ class pyEditor(QMainWindow):
         mptb.addSeparator()
         mptb.addSeparator()
         mptb.addSeparator()
-        mptb.addAction(QIcon.fromTheme("edit-clear"), "clear Shell Terminal", self.clearLabel)
+        mptb.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/terminal"), "Clear Shell Terminal", self.clearLabel)
 
         #*** Layout widgets on the main page ***#
         #*** LEFT Horiz Layout - Fileviewer's
@@ -812,6 +812,7 @@ class pyEditor(QMainWindow):
             #     self.shellText.clear()
             #     self.shellText.setText('Unable to open Serial port ' + self.setx.getSerialPort())
 
+        self.viewTargetFiles()
 
     def getFilesInDir(self, dirpath):
         files = []
@@ -972,7 +973,7 @@ class pyEditor(QMainWindow):
         tv_menu = QMenu(self.targetFileViewer)
         tv_menu.addSection('TARGET ACTIONS:')
         tv_act1 = QAction("Reset Target")
-        tv_act1.setIcon(QIcon(self.setx.getAppPath() + "/icons/reset"))
+        tv_act1.setIcon(QIcon(self.setx.getAppPath() + "/icons/restart"))
         tv_act1.setIconVisibleInMenu(True)
         tv_act1.triggered.connect(self.resetTargetDevice)
         tv_menu.addAction(tv_act1)
@@ -1002,7 +1003,7 @@ class pyEditor(QMainWindow):
         tv_act6.triggered.connect(self.removeScript)
         tv_menu.addAction(tv_act6)
         tv_act7 = QAction("New Target Folder")
-        tv_act7.setIcon(QIcon(self.setx.getAppPath() + "/icons/folder"))
+        tv_act7.setIcon(QIcon(self.setx.getAppPath() + "/icons/folder_add"))
         tv_act7.setIconVisibleInMenu(True)
         tv_act7.triggered.connect(self.newTargetFolder)
         tv_menu.addAction(tv_act7)
@@ -1245,7 +1246,7 @@ class pyEditor(QMainWindow):
         self.TargetFileList = self.mpCmds.ls('/', False, False)
 
         targ1 = QTreeWidgetItem([self.setx.getSerialPort()])
-        targ1.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/port"))
+        targ1.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/connect"))
         # show files in target root directory
         for i in range(len(self.TargetFileList)):
             if self.TargetFileList[i] == '':        # exit if bogus file
@@ -2542,7 +2543,7 @@ def stylesheet2(self):
     """
 
 if __name__ == '__main__':
-    #import asyncio
+    import asyncio
     app = QApplication(argv)
     translator = QTranslator(app)
     locale = QLocale.system().name()
@@ -2554,7 +2555,7 @@ if __name__ == '__main__':
     win.setWindowTitle("MicroPy IDE" + "[*]")
     win.resetTargetDevice()
     win.show()
-    win.viewTargetFiles()      # try to view Target directory
+    #win.viewTargetFiles()      # try to view Target directory
     if len(argv) > 1:
         print('argv= ' + argv[1])
         win.openFileOnStart(argv[1])
