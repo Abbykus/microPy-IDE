@@ -13,7 +13,7 @@ from PyQt5.QtGui import (QIcon, QPainter, QTextFormat, QColor, QTextCursor, QKey
                          QPixmap, QStandardItemModel, QStandardItem, QCursor, QPalette)
 from PyQt5.QtCore import (Qt, QVariant, QRect, QDir, QFile, QFileInfo, QTextStream, QSettings, QTranslator, QLocale,
                           QProcess, QPoint, QSize, QCoreApplication, QStringListModel, QLibraryInfo, QIODevice, QEvent,
-                          pyqtSlot, QModelIndex, QVersionNumber)
+                          pyqtSlot, QModelIndex, QThread)
 
 from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
 #from PyQt5.QtSerialPort import QSerialPort
@@ -32,6 +32,7 @@ import ntpath
 import settings
 import pyboard
 import files
+import asyncio
 
 
 # GLOBAL CONSTANTS
@@ -812,7 +813,8 @@ class pyEditor(QMainWindow):
             #     self.shellText.clear()
             #     self.shellText.setText('Unable to open Serial port ' + self.setx.getSerialPort())
 
-        self.viewTargetFiles()
+
+        #self.viewTargetFiles()
 
     def getFilesInDir(self, dirpath):
         files = []
@@ -1239,10 +1241,15 @@ class pyEditor(QMainWindow):
         #     self.setx.setFlagStr('IGNORE_SERIAL_AFTER_RESET', 'True')      # ignore bytes from target MCU after reset
         #     time.sleep(0.1)
 
+    # def mythread(self):
+    #     self.thread.start_new_thread(self.viewTargetFiles)
+    #     # t1 = Thread(target=self.viewTargetFiles)
+    #     # t1.start()
+
     def viewTargetFiles(self):
-        ret = True
         self.targetFileViewer.clear()
         self.TargetFileList.clear()
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         self.TargetFileList = self.mpCmds.ls('/', False, False)
 
         targ1 = QTreeWidgetItem([self.setx.getSerialPort()])
@@ -1260,7 +1267,7 @@ class pyEditor(QMainWindow):
 
         self.targetFileViewer.addTopLevelItem(targ1)
         self.targetFileViewer.expandAll()
-        return ret
+        QApplication.restoreOverrideCursor()
 
     # Run current script on target device (file not downloaded)
     def runTargetScript(self):
@@ -2543,7 +2550,6 @@ def stylesheet2(self):
     """
 
 if __name__ == '__main__':
-    import asyncio
     app = QApplication(argv)
     translator = QTranslator(app)
     locale = QLocale.system().name()
@@ -2553,9 +2559,9 @@ if __name__ == '__main__':
     app.installTranslator(translator)
     win = pyEditor()
     win.setWindowTitle("MicroPy IDE" + "[*]")
-    win.resetTargetDevice()
     win.show()
-    #win.viewTargetFiles()      # try to view Target directory
+    win.resetTargetDevice()
+    win.viewTargetFiles()
     if len(argv) > 1:
         print('argv= ' + argv[1])
         win.openFileOnStart(argv[1])
