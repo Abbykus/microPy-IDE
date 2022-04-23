@@ -63,16 +63,15 @@ Modifications include:
 J. Hoeppner@Abbykus 2022
 
 """
-
 import sys
 import time
 from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 from PyQt5.QtCore import QIODevice, QBuffer, QByteArray
 from PyQt5.QtGui import QTextCursor
+import binascii
 # import settings
 # import mpconfig
 # from threading import Thread
-
 # stdout = sys.stdout.buffer
 
 
@@ -270,6 +269,7 @@ class Pyboard:
     def serialReadyRead(self):
         if self.ignoreSerial:
             return
+        backspc = False
         serialBytes = bytes(self.serialport.readAll())
         outstr = ''
         i = 0
@@ -277,9 +277,26 @@ class Pyboard:
         while i < len(serialBytes):
             if (serialBytes[i] == 10 or serialBytes[i] == 13) and not self.block_cr:
                 outstr = outstr + chr(serialBytes[i])
+            # special action for backspace
             if 31 < serialBytes[i] < 128:
                 outstr = outstr + chr(serialBytes[i])
+            else:
+                if serialBytes[i] == 8:
+                    backspc = True
+                # print(binascii.hexlify(bytearray(serialBytes[i])))
+                print(hex(serialBytes[i]))
             i += 1
+
+        if backspc:
+            new_content = self.shelltext.toPlainText()
+            prompt = new_content[-5:]
+            # prev_cursor = self.shelltext.textCursor()
+            # self.shelltext.moveCursor(QTextCursor.End)
+            # # Use any backspaces that were left in input to delete text
+            # self.shelltext.textCursor().deletePreviousChar()
+            # self.shelltext.insertPlainText(new_content[1:])
+            # self.shelltext.setTextCursor(prev_cursor)
+            return
 
         self.block_cr = False
 

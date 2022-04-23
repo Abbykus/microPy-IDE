@@ -280,10 +280,6 @@ class pyEditor(QMainWindow):
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.setWindowIcon(QIcon.fromTheme("applications-python"))
 
-        # # create the QSerialPort widget
-        # self.serialport = QSerialPort(self)
-        # self.serialport.setPortName(self.setx.getSerialPort())
-
         # Create the project files viewer derived from QTreeWidget
         self.projectFileViewer = fileViewer()
         self.projectFileViewer.setStyleSheet(stylesheet2(self))
@@ -803,18 +799,7 @@ class pyEditor(QMainWindow):
         if len(baud) > 0:
             indx = self.baudrates.findText(baud)
             self.baudrates.setCurrentIndex(indx)
-            # self.serialport.setBaudRate(int(baud))
-            # if self.serialport.open(QIODevice.ReadWrite):
-            #     self.serialport.setFlowControl(QSerialPort.HardwareControl)
-            #     self.serialport.readyRead.connect(self.serial_read_bytes)
-            #     self.shellText.clear()
-            #     self.shellText.setText('Serial port ' + self.setx.getSerialPort() + ' is connected to Target.')
-            # else:
-            #     self.shellText.clear()
-            #     self.shellText.setText('Unable to open Serial port ' + self.setx.getSerialPort())
-
-
-        #self.viewTargetFiles()
+            self.mpBoard.setSerialPortBaudrate(baud)
 
     def getFilesInDir(self, dirpath):
         files = []
@@ -1198,8 +1183,7 @@ class pyEditor(QMainWindow):
                     self.mpBoard.block_cr = True
                     self.mpBoard.serialWrite(b'\x0D')
                 elif event.key() == Qt.Key_Backspace:
-                    pass
-                    # self.serialport.write(b'\x08')
+                    self.mpBoard.serialWrite(b'\x08')
                 elif event.key() == Qt.Key_Up:
                     print(event.key())
                     self.mpBoard.serialWrite(b'\x2191')
@@ -1207,6 +1191,7 @@ class pyEditor(QMainWindow):
                     self.mpBoard.block_echo = True
                     self.mpBoard.serialWrite(bytes(event.text(), 'utf-8'))
         return super().eventFilter(obj, event)
+
 
     # Project File Viewer was double clicked
     def projectFileViewerDblClicked(self, index):
@@ -1232,19 +1217,6 @@ class pyEditor(QMainWindow):
         self.shellText.append('<Reset Target>\n')
         datastr = str(data, 'utf-8')
         self.shellText.append(datastr)
-
-        # if self.serialport.isOpen():
-        #     self.serialport.setDataTerminalReady(False)
-        #     time.sleep(0.1)
-        #     self.serialport.setDataTerminalReady(True)
-        #     self.shellText.append('>Reset Target.\n')
-        #     self.setx.setFlagStr('IGNORE_SERIAL_AFTER_RESET', 'True')      # ignore bytes from target MCU after reset
-        #     time.sleep(0.1)
-
-    # def mythread(self):
-    #     self.thread.start_new_thread(self.viewTargetFiles)
-    #     # t1 = Thread(target=self.viewTargetFiles)
-    #     # t1.start()
 
     def viewTargetFiles(self):
         self.targetFileViewer.clear()
@@ -1503,15 +1475,15 @@ class pyEditor(QMainWindow):
 
     def setBaudrate(self, baud):
         self.setx.setBaudRate(baud)
-       # self.serialport.setBaudRate(int(baud))
+        self.mpBoard.setSerialPortBaudrate(baud)
 
     def saveComPort(self):
         if len(self.comportfield.text()) > 0:
             self.comportfield.selectAll()
             self.comportfield.repaint()
             self.setx.setSerialPort(self.comportfield.text())
+            self.mpBoard.setSerialPortName(self.comportfield.text())
             self.comportfield.deselect()
-            #self.serialport.setPortName(self.comportfield.text())
 
     def keyPressEvent(self, event):
         if mpconfig.currentTabIndex >= 0:
@@ -1850,9 +1822,9 @@ class pyEditor(QMainWindow):
             self.create_new_tab(path)
         self.change_text_editor(mpconfig.currentTabIndex)
         mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = False
-        # self.setModified(False)
         mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(self.cursor.End)
         self.statusBar().showMessage("new File (" + self.newf_name + ") created.")
+        self.newf_name += '*'       # force file to be saved
         self.tabsList.tabBar().setTabText(self.tabsList.currentIndex(), self.newf_name)     # update editor tab text
         mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
         self.bookmarks.clear()
@@ -1935,8 +1907,9 @@ class pyEditor(QMainWindow):
 
     ### save File
     def fileSaveAs(self):
+        fpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
         fname = self.tabsList.tabText(self.tabsList.currentIndex())
-        fn, _ = QFileDialog.getSaveFileName(self, "Save as...", fname,
+        fn, _ = QFileDialog.getSaveFileName(self, "Save as...", fpath + '/' + fname,
                                             "Python files (*.py)")
         if not fn:
             # print("Error saving file")
@@ -1946,13 +1919,15 @@ class pyEditor(QMainWindow):
         if not lfn.endswith('.py'):
             fn += '.py'
 
-        fpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
         fn = os.path.basename(fn)
-        self.tabsList.setTabText(self.tabsList.currentIndex(), fn)
         self.tabsList.setTabToolTip(self.tabsList.currentIndex(), fn)
+        self.setx.setCurProjectScript(fn)
+        if not fn.endswith('*'):
+            fn += '*'       # force file to be saved
+
+        self.tabsList.setTabText(self.tabsList.currentIndex(), fn)
         self.fileSave()
         self.showDirectoryTree(fpath)
-        self.setx.setCurProjectScript(fn)
 
     def deleteFile(self):
         tcount = self.tabsList.count()
