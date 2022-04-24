@@ -29,6 +29,8 @@ The *microPy-IDE* allows the user to create, test, and deploy microPython script
   - Remove files from target directory.
   - Create new directory on target.
   - Delete target directory.
+- microPython deployment:
+  - Erase and program the target devices flash memory with microPython firmware.
 
 ## DEPENDENCIES
 
