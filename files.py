@@ -173,21 +173,14 @@ class Files(object):
         errbytes = self._mpboard.enter_raw_repl()
         if not errbytes.startswith(b'Failed'):
             out = self._mpboard.exec_(textwrap.dedent(command))
-            # except as ex:  #self._mpboard.PyboardError as ex:
-            #     # Check if this is an OSError #2, i.e. directory doesn't exist and
-            #     # rethrow it as something more descriptive.
-            #     message = ex.args[2].decode("utf-8")
-            #     if message.find("OSError") != -1 and message.find("2") != 1:
-            #         raise RuntimeError("No such directory: {0}".format(directory))
-            #     else:
-            #         raise ex
             self._mpboard.exit_raw_repl()
             # Parse the result list and return it.
             self._mpboard.ignoreSerial = False
             return ast.literal_eval(out.decode("utf-8"))
         else:
             self._mpboard.ignoreSerial = False
-            return []
+            errstr = errbytes.decode('utf-8')
+            return [errstr]
 
     def mkdir(self, directory, exists_okay=False):
         """Create the specified directory.  Note this cannot create a recursive

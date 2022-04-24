@@ -235,8 +235,16 @@ class pyEditor(QMainWindow):
     def __init__(self, parent=None):
         super(pyEditor, self).__init__(parent)
 
+        class Vseparator(QFrame):
+            # a simple separator, like the one you get from designer
+            def __init__(self):
+                super(Vseparator, self).__init__()
+                self.setFrameShape(self.VLine | self.Box)  #self.Sunken)
+
         ### Critical section lock/release
         #self.LOCK = threading.Lock()
+
+        self.extProc = QProcess()       # used to start external programs (processes)
 
         ### Serial data buffer
         self.serialByteArray = b''
@@ -249,6 +257,8 @@ class pyEditor(QMainWindow):
 
         self.shellText = QTextEdit()
         self.shellText.setObjectName("shellText")
+        self.shellText.setReadOnly(False)
+        # self.shellText.setTextInteractionFlags(Qt.TextSelectableByKeyboard)
         _device = self.setx.getSerialPort()
         _baud = self.setx.getBaudRate()
         self.mpBoard = pyboard.Pyboard(self.shellText, _device, _baud)
@@ -262,7 +272,6 @@ class pyEditor(QMainWindow):
         # print('project name= ' + self.setx.getCurProjectName())
         # print('app path= ' + self.setx.getAppPath())
 
-        self.extProc = QProcess()       # used to start external programs
         self.tabsList = QTabWidget()
         self.tabsList.setTabsClosable(True)
         self.tabsList.setTabVisible(0, True)
@@ -436,10 +445,19 @@ class pyEditor(QMainWindow):
         self.delFolderAct = QAction("&Remove Target Folder", self, shortcut='', triggered=self.rmTargetFolder)
         self.delFolderAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/folder_del"))
 
+        self.eraseTargetAct = QAction("&Erase Target Memory", self, shortcut='', triggered=self.eraseTargetMemory)
+        self.eraseTargetAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/burn"))
+
+        self.programTargetAct = QAction("&Program Target", self, shortcut='', triggered=self.programTargetMemory)
+        self.programTargetAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/python"))
+
         ### file buttons
         tb.addAction(self.newProjectAct)
         tb.addAction(self.openProjectAct)
         tb.addAction(self.closeProjectAct)
+        tb.addSeparator()
+        tb.addSeparator()
+        tb.addWidget(Vseparator())
         tb.addSeparator()
         tb.addSeparator()
         tb.addAction(self.newFileAct)
@@ -450,9 +468,11 @@ class pyEditor(QMainWindow):
         tb.addAction(self.deleteFileAct)
         tb.addSeparator()
         tb.addSeparator()
+        tb.addWidget(Vseparator())
+        tb.addSeparator()
+        tb.addSeparator()
 
         ### comment buttons
-        tb.addSeparator()
         tb.addAction(self.commentAct)
         tb.addAction(self.uncommentAct)
         tb.addAction(self.commentBlockAct)
@@ -460,11 +480,19 @@ class pyEditor(QMainWindow):
 
         ### color chooser
         tb.addSeparator()
+        tb.addSeparator()
+        tb.addWidget(Vseparator())
+        tb.addSeparator()
+        tb.addSeparator()
         tb.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/color1"), "insert QColor", self.insertColor)
         tb.addSeparator()
         tb.addAction(QIcon.fromTheme("preferences-color"), "Insert Color Hex Value", self.changeColor)
 
         ### Insert templates
+        tb.addSeparator()
+        tb.addSeparator()
+        tb.addWidget(Vseparator())
+        tb.addSeparator()
         tb.addSeparator()
         self.templates = QComboBox()
         self.templates.setStyleSheet(stylesheet2(self))
@@ -473,26 +501,35 @@ class pyEditor(QMainWindow):
         self.templates.activated[str].connect(self.insertTemplate)
         tb.addWidget(self.templates)
 
-        ### path python buttons
         tb.addSeparator()
-        # tb.addAction(QIcon.fromTheme("edit-clear"), "clear Shell Terminal", self.clearLabel)
+        tb.addSeparator()
+        tb.addWidget(Vseparator())
+        tb.addSeparator()
         tb.addSeparator()
 
-        ### print preview
+        ### print preview & print buttons
         tb.addAction(self.printPreviewAct)
-
-        ### print
+        tb.addSeparator()
         tb.addAction(self.printAct)
 
         ### Help (Zeal) button
         tb.addSeparator()
+        tb.addSeparator()
+        tb.addWidget(Vseparator())
+        tb.addSeparator()
+        tb.addSeparator()
         tb.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/zeal"), "&Zeal Developer Help", self.showZeal)
+        tb.addSeparator()
+        tb.addSeparator()
+        tb.addWidget(Vseparator())
+        tb.addSeparator()
         tb.addSeparator()
 
         ### about buttons
         tb.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/about"), "&About microPy", self.about)
         tb.addSeparator()
         tb.addSeparator()
+        tb.addWidget(Vseparator())
         tb.addSeparator()
         tb.addSeparator()
 
@@ -537,8 +574,16 @@ class pyEditor(QMainWindow):
         self.repAllAct.clicked.connect(self.replaceAll)
         tbf.addWidget(self.repAllAct)
         tbf.addSeparator()
+        tbf.addSeparator()
+        tbf.addWidget(Vseparator())
+        tbf.addSeparator()
+        tbf.addSeparator()
         tbf.addAction(self.indentAct)
         tbf.addAction(self.indentLessAct)
+        tbf.addSeparator()
+        tbf.addSeparator()
+        tbf.addWidget(Vseparator())
+        tbf.addSeparator()
         tbf.addSeparator()
         self.gotofield = QLineEdit()
         self.gotofield.setStyleSheet(stylesheet2(self))
@@ -558,9 +603,14 @@ class pyEditor(QMainWindow):
         self.bookmarks.activated[str].connect(self.gotoBookmark)
         tbf.addWidget(self.bookmarks)
         tbf.addAction(self.bookAct)
-
         tbf.addSeparator()
         tbf.addAction(self.bookrefresh)
+
+        tbf.addSeparator()
+        tbf.addSeparator()
+        tbf.addWidget(Vseparator())
+        tbf.addSeparator()
+        tbf.addSeparator()
         tbf.addAction(QAction(QIcon.fromTheme("document-properties"), "Check && Reindent Text", self,
                               triggered=self.reindentText))
 
@@ -575,6 +625,8 @@ class pyEditor(QMainWindow):
         self.filemenu.addAction(self.openProjectAct)
         self.filemenu.addAction(self.closeProjectAct)
         self.filemenu.addSeparator()
+        self.filemenu.addSeparator()
+
 
         #self.filemenu.insertSeparator(self.separatorAct)
         self.filemenu.addAction(self.newFileAct)
@@ -659,6 +711,7 @@ class pyEditor(QMainWindow):
         self.comportfield.setToolTip("Serial Port Name")
         self.comportfield.returnPressed.connect(self.saveComPort)
         mptb.addWidget(self.comportfield)
+        mptb.addSeparator()
 
         ### Baudrate dropdown editbox
         self.baudrates = QComboBox()
@@ -669,6 +722,10 @@ class pyEditor(QMainWindow):
         baud_list = ["9600", "19200", "38400", "57600", "115200", "250000"]
         self.baudrates.addItems(baud_list)
         mptb.addWidget(self.baudrates)
+
+        mptb.addSeparator()
+        mptb.addSeparator()
+        mptb.addWidget(Vseparator())
 
         ### RESET Target Button
         mptb.addSeparator()
@@ -705,8 +762,20 @@ class pyEditor(QMainWindow):
         ### Clear shell terminal output
         mptb.addSeparator()
         mptb.addSeparator()
+        mptb.addWidget(Vseparator())
+        mptb.addSeparator()
         mptb.addSeparator()
         mptb.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/terminal"), "Clear Shell Terminal", self.clearLabel)
+
+        ### Erase & program firmware buttons
+        mptb.addSeparator()
+        mptb.addSeparator()
+        mptb.addWidget(Vseparator())
+        mptb.addSeparator()
+        mptb.addSeparator()
+        mptb.addAction(self.eraseTargetAct)
+        mptb.addSeparator()
+        mptb.addAction(self.programTargetAct)
 
         #*** Layout widgets on the main page ***#
         #*** LEFT Horiz Layout - Fileviewer's
@@ -1223,6 +1292,10 @@ class pyEditor(QMainWindow):
         self.TargetFileList.clear()
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.TargetFileList = self.mpCmds.ls('/', False, False)
+        if self.TargetFileList[0].startswith('Failed'):
+            self.shellText.insertPlainText('\nFailed to upload target files!\n')
+            QApplication.restoreOverrideCursor()
+            return
 
         targ1 = QTreeWidgetItem([self.setx.getSerialPort()])
         targ1.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/connect"))
@@ -1279,7 +1352,8 @@ class pyEditor(QMainWindow):
         dialog = QFileDialog(self)
         dialog.setWindowTitle('Download File to Target Device')
         dialog.setNameFilter('(*.py)')
-        dialog.setDirectory(self.setx.getCurProjectPath() + '.' + self.setx.getCurTargetScript())
+        dialog.setDirectory(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())   #+\
+                            # '/' + self.setx.getCurTargetScript())
         dialog.setFileMode(QFileDialog.ExistingFile)
         filename = None
         fname = ''
@@ -1473,6 +1547,108 @@ class pyEditor(QMainWindow):
         self.viewTargetFiles()
         QApplication.restoreOverrideCursor()
 
+    # Erase target memory prior to programming with (presumably) microPython
+    def eraseTargetMemory(self):
+        ret = QMessageBox.question(self, "Erase Target Memory",
+                                   "<h4><p>This action will ERASE target flash memory.</p>\n" \
+                                   "<p>Do you want to CONTINUE erasure?</p></h4>",
+                                   QMessageBox.Yes | QMessageBox.No)
+        if ret == QMessageBox.Yes:
+            self.shellText.moveCursor(self.cursor.End)
+            self.shellText.insertPlainText('Erasing Target Memory...\n')
+            # self.shellText.append('Erasing Target Memory...\n')
+            procCmdStr = 'esptool.py --port ' + self.setx.getSerialPort() + ' erase_flash'
+            self.mpBoard.serialClose()
+            self.startProcess(procCmdStr)
+        return
+
+    # Program target memory with (presumably) microPython
+    def programTargetMemory(self):
+        ret = QMessageBox.question(self, "Program Target Memory",
+                                   "<h4><p>This will PROGRAM target flash memory.</p>\n" \
+                                   "<p>Do you want to CONTINUE programming?</p></h4>",
+                                   QMessageBox.Yes | QMessageBox.No)
+        if ret == QMessageBox.No:
+            return
+
+        self.pgmf_path = self.setx.getAppPath() + '/microPython'
+        self.pgmf_name, _ = QFileDialog.getOpenFileName(self, "Open Firmware File", self.pgmf_path,
+                                            "Binary files (*.bin)")
+        # self.pgmf_name = os.path.basename(self.pgmf_name)
+        if not self.pgmf_name or not self.pgmf_name.endswith('.bin'):  # exit if dialog rejected
+            self.shellText.moveCursor(self.cursor.End)
+            self.shellText.insertPlainText('Programming Target Cancelled!\n')
+            # self.shellText.append('Programming Target Cancelled!\n')
+            return
+
+        self.shellText.moveCursor(self.cursor.End)
+        self.shellText.insertPlainText('Programming Target Memory...\n')
+        # self.shellText.append('Programming Target Memory...\n')
+        procCmdStr = 'esptool.py --port ' + self.setx.getSerialPort() +\
+                     ' --baud 460800 write_flash --flash_size=detect 0 ' + self.pgmf_name
+        self.mpBoard.serialClose()
+        self.startProcess(procCmdStr)
+
+    def pgmf_accept(self):
+        self.pgmf_name = self.pgmfedit.text()
+        self.pgmfdialog.close()
+
+    def pgmf_reject(self):
+        self.pgmf_name = ''
+        self.pgmfdialog.close()
+
+        return
+
+    # Start external process. procCmdStr has the name of the external process and its arguments
+    def startProcess(self, procCmdStr):
+        if len(procCmdStr) == 0:
+            return
+        if self.extProc.atEnd():  # No process running if true.
+            self.extProc.finished.connect(self.procFinished)
+            self.extProc.readyReadStandardOutput.connect(self.procHandleStdout)
+            self.extProc.readyReadStandardError.connect(self.procHandleStderr)
+            self.extProc.stateChanged.connect(self.procHandleState)
+            self.extProc.start(procCmdStr)
+            self.extProc.waitForStarted(3000)
+        else:
+            self.shellText.append('Run process failed! Another process is currently running.\n')
+
+    def procHandleStderr(self):
+        data = self.extProc.readAllStandardError()
+        stderr = bytes(data).decode("utf8")
+        self.shellText.moveCursor(self.cursor.End)
+        self.shellText.insertPlainText(stderr)
+        # self.shellText.append(stderr)
+
+    # external process returns data
+    def procHandleStdout(self):
+        data = self.extProc.readAllStandardOutput()
+        stdout = bytes(data).decode("utf8")     # convert bytearray to string
+        self.shellText.moveCursor(self.cursor.End)
+        self.shellText.insertPlainText(stdout)
+        #self.shellText.append(stdout)   # default - send ext proc text to shellText
+
+    def procHandleState(self, state):
+        states = {
+            QProcess.NotRunning: 'Stopped',
+            QProcess.Starting: 'Starting',
+            QProcess.Running: 'Running',
+        }
+        state_name = states[state]
+        # reopen closed serial port so REPL will work
+        # if 'Stopped' in state_name:
+        #     self.serialport.open(QIODevice.ReadWrite)
+        self.shellText.moveCursor(self.cursor.End)
+        self.shellText.insertPlainText(f"State changed: {state_name}")
+        # self.shellText.append(f"State changed: {state_name}")
+
+    def procFinished(self):
+        self.shellText.moveCursor(self.cursor.End)
+        self.shellText.insertPlainText('\nExternal process has Completed!\n')
+        # self.shellText.append('\nExternal process has Completed!\n')
+        if not self.mpBoard.isSerialOpen():
+            self.mpBoard.serialOpen()
+
     def setBaudrate(self, baud):
         self.setx.setBaudRate(baud)
         self.mpBoard.setSerialPortBaudrate(baud)
@@ -1555,7 +1731,7 @@ class pyEditor(QMainWindow):
                 colorname = col.name()
                 mpconfig.editorList[mpconfig.currentTabIndex].textCursor().insertText(colorname)
 
-    ### QPlainTextEdit contextMenu
+    # QPlainTextEdit contextMenu (Right Click on current python editor))
     def contextMenuRequested(self, point):
         cmenu = QMenu()
         cmenu = mpconfig.editorList[mpconfig.currentTabIndex].createStandardContextMenu()
@@ -1598,9 +1774,6 @@ class pyEditor(QMainWindow):
             tc = mpconfig.editorList[mpconfig.currentTabIndex].textCursor()
             tc.select(QTextCursor.WordUnderCursor)
             rtext = tc.selectedText()
-            # print(rtext)
-        #            mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.StartOfWord, QTextCursor.MoveAnchor)
-        #            mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.EndOfWord, QTextCursor.KeepAnchor)
         else:
             rtext = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText()
         cmd = "zeal " + str(rtext)
@@ -1642,26 +1815,26 @@ class pyEditor(QMainWindow):
             #            mpconfig.editorList[mpconfig.currentTabIndex].find(ot)
             self.statusBar().showMessage("tabs deleted")
 
-    def dataReady(self):
-        out = ""
-        try:
-            out = str(self.process.readAll(), encoding='utf8').rstrip()
-        except TypeError:
-            self.msgbox("Error", str(self.process.readAll(), encoding='utf8'))
-            out = str(self.process.readAll()).rstrip()
-        self.shellText.moveCursor(self.cursor.Start)
-        self.shellText.append(out)
-        if self.shellText.find("line", QTextDocument.FindWholeWords):
-            t = self.shellText.toPlainText().partition("line")[2].partition("\n")[0].lstrip()
-            if t.find(",", 0):
-                tr = t.partition(",")[0]
-            else:
-                tr = t.lstrip()
-            self.gotoErrorLine(tr)
-        else:
-            return
-        self.shellText.moveCursor(self.cursor.End)
-        self.shellText.ensureCursorVisible()
+    # def dataReady(self):
+    #     out = ""
+    #     try:
+    #         out = str(self.process.readAll(), encoding='utf8').rstrip()
+    #     except TypeError:
+    #         self.msgbox("Error", str(self.process.readAll(), encoding='utf8'))
+    #         out = str(self.process.readAll()).rstrip()
+    #     self.shellText.moveCursor(self.cursor.Start)
+    #     self.shellText.append(out)
+    #     if self.shellText.find("line", QTextDocument.FindWholeWords):
+    #         t = self.shellText.toPlainText().partition("line")[2].partition("\n")[0].lstrip()
+    #         if t.find(",", 0):
+    #             tr = t.partition(",")[0]
+    #         else:
+    #             tr = t.lstrip()
+    #         self.gotoErrorLine(tr)
+    #     else:
+    #         return
+    #     self.shellText.moveCursor(self.cursor.End)
+    #     self.shellText.ensureCursorVisible()
 
     def createActions(self):
         maxf = int(self.setx.getMaxRecentFiles())
@@ -2457,7 +2630,7 @@ def stylesheet2(self):
     QTextEdit
     {
     background: #2B2B2B;
-    color: #29e852;
+    color: #22f750;
     font-family: Monospace;
     font-size: 8pt;
     padding-left: 6px;
@@ -2472,7 +2645,7 @@ def stylesheet2(self):
     QLabel
     {
     font-family: Monospace;
-    color: #1EAE3D;
+    color: #22f750;
     font-size: 9pt;
     }
     QLineEdit

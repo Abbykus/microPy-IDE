@@ -143,6 +143,8 @@ class TelnetToSerial:
 class Pyboard:
     def __init__(self, shelltext, device, baud, user='micro', password='python', wait=0):
 
+        self._device = device
+        self._baudrate = baud
         self.shelltext = shelltext
         self.cursor = QTextCursor()
 
@@ -151,21 +153,6 @@ class Pyboard:
         self.block_cr = False
         self.block_echo = False
 
-        # check if control over WiFi
-        # device = _setx.getSerialPort()
-        # baud = _setx.getBaudRate()
-        # if device and device[0].isdigit() and device[-1].isdigit() and device.count('.') == 3:
-        #     # device looks like an IP address
-        #     self.serialport = TelnetToSerial(device, user, password, read_timeout=10)
-        # if device == 'junk':
-        #     pass
-        # else:
-            # for info in QSerialPortInfo.availablePorts():
-            #     print('name=', info.portName())
-            #     print('description =', info.description())
-            #     print('manufacturer =', info.manufacturer())
-            #     print('')
-            #serialport.readyRead.connect(self.serial_read_bytes)
         # device = '192.168.4.1'
 
         if device and device[0].isdigit() and device[-1].isdigit() and device.count('.') == 3:
@@ -178,48 +165,14 @@ class Pyboard:
             self.serialport.setFlowControl(QSerialPort.HardwareControl)
             self.serialport.readyRead.connect(self.serialReadyRead)
             if self.serialport.open(QIODevice.ReadWrite):
-                self.shelltext.append('Serial port ' + device + ' is connected to target.')
+                self.shelltext.append('Serial port ' + device + ' is open.')
             else:
-                self.shelltext.append('Serial port ' + device + ' cannot connect to target!')
+                self.shelltext.append('Error: Cannot open serial port ' + device)
 
-
-            # delayed = False
-            # for attempt in range(wait + 1):
-            #     #try:
-            #     if self.serialport.open(QIODevice.ReadWrite):
-            #         print('hit reset')
-            #         self.serialport.setDataTerminalReady(False)
-            #         time.sleep(0.1)
-            #         self.serialport.setDataTerminalReady(True)
-            #         time.sleep(0.1)
-            #         start = time.time()
-            #         while time.time() - start < 3:
-            #             if self.serialport.bytesAvailable() > 0:
-            #                 print('got some')
-            #                 ab = self.serialport.readAll()
-            #                 print('ab=', ab)
-            #                 break
-                # except (OSError, IOError): # Py2 and Py3 have different errors
-                #     if wait == 0:
-                #         continue
-                #     if attempt == 0:
-                #         sys.stdout.write('Waiting {} seconds for pyboard '.format(wait))
-                #         delayed = True
-                # time.sleep(1)
-                # sys.stdout.write('.')
-                # sys.stdout.flush()
-            # else:
-            #     if delayed:
-            #         print('failed to access ' + device)
-            #     #raise PyboardError('failed to access ' + device)
-            # if delayed:
-            #     print('')
 
     def stdout_write_bytes(self, b):
         b = b.replace(b"\x04", b"")
-        self.shelltext.append(b)
-        #stdout.write(b)
-        #stdout.flush()
+        self.shelltext.insertPlainText(b.decode('utf-8'))
 
     def serialWrite(self, databytes):
         self.serialport.write(databytes)
@@ -254,17 +207,24 @@ class Pyboard:
             self.serialport.write(b'\x03')
             time.sleep(0.1)
 
-    def isConnected(self):
+    def isSerialOpen(self):
         return self.serialport.isOpen()
 
     def setSerialPortName(self, device):        # device is string name of system serial port
         self.serialport.setPortName(device)     # serial port, example - 'COM1' or '/dev/ttyUSB0'
+        self._device = device
 
     def setSerialPortBaudrate(self, baud):      # baud is a string
         self.serialport.setBaudRate(int(baud))  # must convert baudrate str to int
+        self._baudrate = baud
 
-    def close(self):
+    def serialClose(self):
         self.serialport.close()
+
+    def serialOpen(self):
+        self.setSerialPortName(self._device)
+        self.setSerialPortBaudrate(self._baudrate)
+        self.serialport.open(QIODevice.ReadWrite)
 
     def serialReadyRead(self):
         if self.ignoreSerial:
@@ -284,7 +244,7 @@ class Pyboard:
                 if serialBytes[i] == 8:
                     backspc = True
                 # print(binascii.hexlify(bytearray(serialBytes[i])))
-                print(hex(serialBytes[i]))
+                # print(hex(serialBytes[i]))
             i += 1
 
         if backspc:
@@ -298,7 +258,7 @@ class Pyboard:
             # self.shelltext.setTextCursor(prev_cursor)
             return
 
-        self.block_cr = False
+        # self.block_cr = False
 
         if not self.block_echo:
             self.shelltext.moveCursor(self.cursor.End)
@@ -321,13 +281,14 @@ class Pyboard:
             outahere = False
             timeout_count = timeout * 100
             while True:
-                self.serialport.waitForReadyRead(10)
-                while self.serialport.bytesAvailable() > 0:
-                    data += self.serialport.read(min_num_bytes)
-                    if data.endswith(ending):
-                        outahere = True
-                        break
-                timeout_count -= 1
+                if self.serialport.waitForReadyRead(10):
+                    while self.serialport.bytesAvailable() > 0:
+                        data += self.serialport.read(min_num_bytes)
+                        if data.endswith(ending):
+                            outahere = True
+                            break
+                else:
+                    timeout_count -= 1
                 if outahere or timeout_count <= 0:
                     break
         return data
@@ -348,37 +309,34 @@ class Pyboard:
             self.serialport.read(n)
             n = self.serialport.bytesAvailable()
 
-        for retry in range(0, 3):
+        for retry in range(0, 1):
             self.serialport.write(b'\r\x01')    # ctrl-A: enter raw REPL
             time.sleep(0.2)
-            data = self.read_until(1, b'raw REPL; CTRL-B to exit\r\n>', 2)
+            data = self.read_until(1, b'raw REPL; CTRL-B to exit\r\n>', 1)
             if data.endswith(b'raw REPL; CTRL-B to exit\r\n>'):
                 break
-            else:
-                if retry >= 4:
-                    failed = True
-                    data = b'Failed to enter raw REPL'
-                time.sleep(0.2)
+        else:
+            data = b'Failed to enter raw REPL'
+            return data
 
-        if not data.startswith(b'Failed'):
-            self.serialport.write(b'\x04')  # ctrl-D: soft reset
-            data = self.read_until(1, b'soft reboot\r\n')
-            if not data.endswith(b'soft reboot\r\n'):
-                data = b'Failed to soft reboot'
-            else:
-                # By splitting this into 2 reads, it allows boot.py to print stuff,
-                # which will show up after the soft reboot and before the raw REPL.
-                # Modification from original pyboard.py below:
-                #   Add a small delay and send Ctrl-C twice after soft reboot to ensure
-                #   any main program loop in main.py is interrupted.
-                time.sleep(0.1)
-                self.serialport.write(b'\x03')
-                time.sleep(0.1)           # (slight delay before second interrupt
-                self.serialport.write(b'\x03')
-                # End modification above.
-                data = self.read_until(1, b'raw REPL; CTRL-B to exit\r\n>')
-                if not data.endswith(b'raw REPL; CTRL-B to exit\r\n>'):
-                    data = b'Failed to enter raw REPL'
+        self.serialport.write(b'\x04')  # ctrl-D: soft reset
+        data = self.read_until(1, b'soft reboot\r\n')
+        if not data.endswith(b'soft reboot\r\n'):
+            data = b'Failed to soft reboot'
+        else:
+            # By splitting this into 2 reads, it allows boot.py to print stuff,
+            # which will show up after the soft reboot and before the raw REPL.
+            # Modification from original pyboard.py below:
+            #   Add a small delay and send Ctrl-C twice after soft reboot to ensure
+            #   any main program loop in main.py is interrupted.
+            time.sleep(0.1)
+            self.serialport.write(b'\x03')
+            time.sleep(0.1)           # (slight delay before second interrupt
+            self.serialport.write(b'\x03')
+            # End modification above.
+            data = self.read_until(1, b'raw REPL; CTRL-B to exit\r\n>')
+            if not data.endswith(b'raw REPL; CTRL-B to exit\r\n>'):
+                data = b'Failed to complete raw REPL'
 
         return data
 
@@ -390,15 +348,15 @@ class Pyboard:
         # wait for normal output
         data = self.read_until(1, b'\x04', timeout=timeout)
         if not data.endswith(b'\x04'):
-            print('timeout waiting for first EOF reception')
-        data = data[:-1]
-
-        # wait for error output
-        data_err = self.read_until(1, b'\x04', timeout=timeout)
-        if not data_err.endswith(b'\x04'):
-            print('timeout waiting for second EOF reception')
-        data_err = data_err[:-1]
-
+            print('Failed: Timeout in first command EOF!')
+            data_err = b'Failed: Timeout in first command EOF!\n'
+            data = b''
+        else:
+            data = data[:-1]    # remove trailing '\x04'
+            # wait to see if any error output
+            data_err = self.read_until(1, b'\x04', 0.1)
+            if data_err and data_err.endswith(b'\x04'):
+                data_err = data_err[:-1]
         # return normal and error output
         return data, data_err
 
@@ -411,7 +369,7 @@ class Pyboard:
             command_bytes = bytes(command, encoding='utf8')
 
         # check we have a prompt
-        data = self.read_until(1, b'>')
+        # data = self.read_until(1, b'>')
         # if not data.endswith(b'>'):
         #     print('could not enter raw repl >')
 
@@ -427,8 +385,8 @@ class Pyboard:
         if not data.endswith(b'OK'):
             print('could not exec command')
 
-    def exec_raw(self, command, timeout=10, data_consumer=None):
-        self.exec_raw_no_follow(command);
+    def exec_raw(self, command, timeout=1, data_consumer=None):
+        self.exec_raw_no_follow(command)
         return self.follow(timeout, data_consumer)
 
     def exec_(self, command, stream_output=False):
@@ -439,7 +397,7 @@ class Pyboard:
             data_consumer = self.stdout_write_bytes
         ret, ret_err = self.exec_raw(command, data_consumer=data_consumer)
         if ret_err:
-            print('exception ', ret, ret_err)
+            self.shelltext.insertPlainText(ret_err.decode('utf-8'))
         return ret
 
     def execfile(self, filename, stream_output=False):
