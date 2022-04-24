@@ -1,6 +1,6 @@
 # ***microPy-IDE***
 
-## STATUS: Beta release version 0.1.0 04/20/2022.
+## STATUS: Beta release version 0.1.1 04/24/2022.
 
 The *microPy-IDE* is a development environment for the [microPython language](https://micropython.org/) which is a subset of Python 3 and is optimised to run on microcontrollers and in constrained environments. 
 
@@ -31,11 +31,14 @@ The *microPy-IDE* allows the user to create, test, and deploy microPython script
   - Delete target directory.
 
 ## DEPENDENCIES
-As a prerequisite, the host PC must have at least Python 3.6 and PIP3 installed. 
+
+### Python 3.x
+As a prerequisite the host PC must have at least Python 3.6 and PIP3 installed. 
 Your OS likely has Python 3.x installed. If not please google for installation on your OS.
-If the version of Python is lower than 3.6 please consider upgrading to the latest release.
+If the version of Python is lower than 3.6 please upgrade to the latest release.
 
 ### Install PIP3
+PIP3 is a package manager for Python applications. Use the following instrctuins if your system does not have PIP3 installed.
 - *Linux / MacOS*
   - Launch a terminal (CTRL-ALT-T) and type **sudo apt install python3-pip**
 
@@ -43,13 +46,20 @@ If the version of Python is lower than 3.6 please consider upgrading to the late
   - See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
 
 ### Install PYQT5 GUI Widgets Toolkit
-Open a terminal and type **pip3 install pyqt5 pyqt5-tools**
+Open a terminal and type **pip3 install pyqt5 pyqt5-tools**.
+
+### Install Espressif *esptool* (optional)
+Install *esptool* to allow the IDE to erase and program ESP8266 or ESP32 target boards with microPython. 
+
+- Launch a terminal window and type **pip3 install esptool**.
 
 ### Install Zeal Offline Language Reference (optional)
+Zeal is an offline developer help system. This can be a very useful application for looking up Python / MicroPython language constructs.
 - *Linux / MacOS*
-  - Launch terminal (CTRL-ALT-T) and type **sudo apt install zeal**
+  - Launch terminal window and type **sudo apt-get install zeal**.
 
 - *Windows*
+  - See [here](https://zealdocs.org/download.html) for Windows 10 installation directions.
 
 After installing *zeal*, launch it and goto ***tools->docsets*** and add Python language support.
 
