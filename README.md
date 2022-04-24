@@ -6,8 +6,7 @@ The *microPy-IDE* is a development environment for the [microPython language](ht
 
 Using the familiar Python programming language you can interact with development hardware and control it, much the same as controlling hardware with the Arduino IDE using C/C++. The Abbykus QDEV family of boards makes it easy to get started using MicroPython and thanks to recent contributions to MicroPython, you can turn any QDEV board into a MicroPython device.
 
-
-![](https://github.com/Abbykus/microPy-IDE/blob/3a2bbbc565d9bde55c800ac3cb0ba72c25d3f430/photos/microPy-IDE.png)
+![microPy-IDE](https://user-images.githubusercontent.com/99380815/164956938-f6c2bf28-fce5-47aa-aed9-46462f1c6e61.png)
 
 The *microPy-IDE* runs on a host PC and connects to a target device (QDEV board) via a serial port (USB-serial) or over WiFi. The target device must be running the correct version of the microPython interpreter for the target's specific microcontroller. See [microPython downloads](https://micropython.org/download/).
 
