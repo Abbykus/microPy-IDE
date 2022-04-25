@@ -368,19 +368,13 @@ class Pyboard:
         else:
             command_bytes = bytes(command, encoding='utf8')
 
-        # check we have a prompt
-        # data = self.read_until(1, b'>')
-        # if not data.endswith(b'>'):
-        #     print('could not enter raw repl >')
-
         # write command script to target
         for i in range(0, len(command_bytes), 256):
             self.serialport.write(command_bytes[i:min(i + 256, len(command_bytes))])
             time.sleep(0.01)
         self.serialport.write(b'\x04')      # Ctrl-D ends the transmit
 
-        # check if we could exec command
-        # data = self.serialport.read(2)
+        # check if command was accepted
         data = self.read_until(1, b'OK')
         if not data.endswith(b'OK'):
             print('could not exec command')

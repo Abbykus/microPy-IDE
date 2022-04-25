@@ -40,6 +40,7 @@ lineBarColor = QColor("#84aff4")
 lineHighlightColor = QColor("#232323")
 border_outer_color = QColor("#ef4343")
 tab = chr(9)
+tab_indent = 4
 eof = "\n"
 iconsize = QSize(24, 24)
 
@@ -297,22 +298,22 @@ class pyEditor(QMainWindow):
             proj_name = 'Project: ' + proj_name
         else:
             proj_name = 'Project: None'
-            #self.settings.setValue('CUR_PROJECT_NAME', '')
+
         self.projectFileViewer.setHeaderItem(QTreeWidgetItem([proj_name]))
-        self.projectFileViewer.setColumnCount(1)
+        self.projectFileViewer.setColumnCount(2)
         self.projectFileViewer.itemDoubleClicked.connect(self.projectFileViewerDblClicked)
         self.projectFileViewer.setContextMenuPolicy(Qt.CustomContextMenu)
         self.projectFileViewer.customContextMenuRequested.connect(self.projectViewerContextMenu)
 
         # Populate the Project file viewer
-        self.showDirectoryTree(self.setx.getCurProjectPath())
+        self.viewProjectFiles(self.setx.getCurProjectPath())
         self.projectFileViewer.expandAll()
 
         # Create the Target file viewer
         self.targetFileViewer = fileViewer()
         self.targetFileViewer.setStyleSheet(stylesheet2(self))
-        self.targetFileViewer.setHeaderItem(QTreeWidgetItem([" Target Files"]))
-        self.targetFileViewer.setColumnCount(1)
+        self.targetFileViewer.setHeaderItem(QTreeWidgetItem(["Target Files", "Size"]))
+        self.targetFileViewer.setColumnCount(2)
 
         targ1 = QTreeWidgetItem([self.setx.getSerialPort()])
         self.targetFileViewer.addTopLevelItem(targ1)
@@ -676,10 +677,20 @@ class pyEditor(QMainWindow):
         editmenu.addAction(self.indentAct)
         editmenu.addAction(self.indentLessAct)
 
+        self.settings_menu = bar.addMenu("Settings")
+        self.settings_menu.setStyleSheet(stylesheet2(self))
+        self.settings_menu.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/settings"), "&Settings Menu", self.settingsmenu)
+        self.settings_menu.addSeparator()
+
+
         ### Top level menu bar 'Help'
         self.helpmenu = bar.addMenu("Help")
         self.helpmenu.setStyleSheet(stylesheet2(self))
         self.separatorAct = self.helpmenu.addSeparator()
+
+        ### About button
+        self.helpmenu.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/about"), "&About microPy", self.about)
+        self.helpmenu.addSeparator()
 
         ### Zeal button
         self.helpmenu.addAction(self.zealAct)
@@ -891,12 +902,12 @@ class pyEditor(QMainWindow):
         #dialog.setSidebarUrls([QtCore.QUrl.fromLocalFile(place)])
         if gdir_dialog.exec_() == QDialog.Accepted:
             new_dir = gdir_dialog.selectedFiles()[0]
-            self.showDirectoryTree(new_dir)
+            self.viewProjectFiles(new_dir)
 
-    # Show folders & files in the 'path' directory to the projectFileViewer tree widget
-    def showDirectoryTree(self, curpath):
+    # View folders & files in the 'path' directory to the projectFileViewer tree widget
+    def viewProjectFiles(self, curpath):
         self.projectFileViewer.clear()
-        if len(self.setx.getCurProjectName()) == 0:
+        if len(self.setx.getCurProjectName()) == 0:     # exit if no current project
             return
 
         self.load_project_tree(curpath, self.projectFileViewer)
@@ -904,60 +915,28 @@ class pyEditor(QMainWindow):
         self.projectFileViewer.expandAll()
 
         proj_name = 'Project: ' + self.setx.getCurProjectName()
-        self.projectFileViewer.setHeaderItem(QTreeWidgetItem([proj_name]))
+        self.projectFileViewer.setHeaderItem(QTreeWidgetItem(['Project Files', 'Size']))
+        # sz = self.projectFileViewer.width()
+        # print('pfv width=', sz)
+        self.projectFileViewer.setColumnWidth(0, 180)     # set col 0 size so file names aren't cropped
+        # self.projectFileViewer.header().setDefaultSectionSize(int(sz / 4))
 
-    # recursive function to display directory contnts in projectFileViewer
+    # recursive function to display directory contents in projectFileViewer
     def load_project_tree(self, startpath, tree):
         for element in os.listdir(startpath):
             path_info = os.path.join(startpath, element)
-            parent_itm = QTreeWidgetItem(tree, [os.path.basename(element)])
+            file_stats = os.stat(path_info)
+            if element == self.setx.getCurProjectName():
+                parent_itm = QTreeWidgetItem(tree, [os.path.basename(element)])
+            else:
+                parent_itm = QTreeWidgetItem(tree, [os.path.basename(element), str(file_stats.st_size)])
             parent_itm.setData(0, Qt.UserRole, path_info)
+            # parent_itm.setData(1, Qt.UserRole, '123')
             if os.path.isdir(path_info):
                 self.load_project_tree(path_info, parent_itm)
                 parent_itm.setIcon(0, QIcon(self.setx.getAppPath() + '/icons/folder_closed'))
             else:
                 parent_itm.setIcon(0, QIcon(self.setx.getAppPath() + '/icons/file'))
-
-        # self.projectFileViewer.clear()
-        # dirfiles = os.listdir(curpath)
-        # fullpaths = map(lambda name: os.path.join(curpath, name), dirfiles)
-        # head, tail = ntpath.split(curpath)
-        # tldir = tail or ntpath.basename(head)
-        # #print('tldir=' + tldir)
-        # l1 = QTreeWidgetItem([tldir])
-        # l1.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/folder_open"))
-        #
-        # dirs = []
-        # files = []
-        #
-        # for file in fullpaths:
-        #     if os.path.isdir(file):
-        #         head, tail = ntpath.split(file)
-        #         file = tail or ntpath.basename(head)
-        #         dirs.append(file)
-        #     elif os.path.isfile(file):
-        #         head, tail = ntpath.split(file)
-        #         file = tail or ntpath.basename(head)
-        #         files.append(file)
-        #
-        # # display directories on top
-        # for ndir in dirs:
-        #     l1_child = QTreeWidgetItem(['/' + ndir])
-        #     icd = QIcon(self.setx.getAppPath() + "/icons/folder_closed")
-        #     l1_child.setIcon(0, icd)
-        #     l1.addChild(l1_child)
-        #
-        # # display files on bottom
-        # for nfile in files:
-        #     l1_child = QTreeWidgetItem([nfile])
-        #     icf = QIcon(self.setx.getAppPath() + "/icons/file")
-        #     l1_child.setIcon(0, icf)
-        #     l1.addChild(l1_child)
-        #
-        # self.projectFileViewer.addTopLevelItem(l1)
-        # self.projectFileViewer.expand(0)
-        # self.projectFileViewer.expandAll()
-        # self.projectFileViewer.setItemsExpandable(False)
 
     def createNewProject(self):
         self.new_proj = 'untitled'
@@ -995,7 +974,7 @@ class pyEditor(QMainWindow):
             os.mkdir(self.setx.getCurProjectPath())
             os.chdir(self.setx.getCurProjectPath())
             self.statusBar().showMessage("New Project (" + self.new_proj + ") created.")
-            self.showDirectoryTree(self.setx.getCurProjectPath())
+            self.viewProjectFiles(self.setx.getCurProjectPath())
 
         # self.newProjectAct.setEnabled(True)
         # self.bookmarks.clear()
@@ -1115,24 +1094,6 @@ class pyEditor(QMainWindow):
         position.setY(position.y() + 50)
         pv_menu.exec(self.projectFileViewer.mapToGlobal(position))
 
-
-    # def backUpOneDirectory(self):
-    #     path = os.getcwd().split('/', 20)
-    #     print(path)
-    #     newpath = ''
-    #     for i in range(len(path) - 1):
-    #         if path[i]:
-    #             newpath += ('/' + path[i])
-    #
-    #     print(newpath)
-    #     os.chdir(newpath)
-    #     self.showDirectoryTree(newpath)
-
-    # the action executed when menu is clicked
-    # def display_selection(self):
-    #     column = self.targetFileViewer.currentColumn()
-    #     text = self.targetFileViewer.currentItem().text(column)
-    #     print("right-clicked item is " + text)
 
     def remove_tab(self, index):
         if index != self.tabsList.currentIndex():
@@ -1291,7 +1252,7 @@ class pyEditor(QMainWindow):
         self.targetFileViewer.clear()
         self.TargetFileList.clear()
         QApplication.setOverrideCursor(Qt.WaitCursor)
-        self.TargetFileList = self.mpCmds.ls('/', False, False)
+        self.TargetFileList = self.mpCmds.ls('/', True, False)
         if self.TargetFileList[0].startswith('Failed'):
             self.shellText.insertPlainText('\nFailed to upload target files!\n')
             QApplication.restoreOverrideCursor()
@@ -1306,11 +1267,13 @@ class pyEditor(QMainWindow):
             # remove leading slash from file name (names with a dot)
             if self.TargetFileList[i].startswith('/', 0, 1) and self.TargetFileList[i].find('.') != -1:
                 self.TargetFileList[i] = self.TargetFileList[i].replace('/', '', 1)
-            targ1_child = QTreeWidgetItem([self.TargetFileList[i]])
+            fn = self.TargetFileList[i].split(';')
+            targ1_child = QTreeWidgetItem([fn[0], fn[1]])
             targ1_child.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/file"))
             targ1.addChild(targ1_child)
 
         self.targetFileViewer.addTopLevelItem(targ1)
+        self.targetFileViewer.setColumnWidth(0, 180)  # set col 0 size so file names aren't cropped
         self.targetFileViewer.expandAll()
         QApplication.restoreOverrideCursor()
 
@@ -1703,7 +1666,7 @@ class pyEditor(QMainWindow):
             mpconfig.editorList[mpconfig.currentTabIndex].selectAll()
             tab = "\t"
             oldtext = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText()
-            newtext = oldtext.replace(tab, "    ")
+            newtext = oldtext.replace(tab, "    ")      # use spaces instead of tab char
             mpconfig.editorList[mpconfig.currentTabIndex].textCursor().insertText(newtext)
             self.statusBar().showMessage("reindented")
 
@@ -1794,11 +1757,12 @@ class pyEditor(QMainWindow):
             ot = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText()
             theList = ot.splitlines()
             linecount = ot.count(newline)
+            if linecount and ot.endswith(newline):    # don't count the last newline
+                linecount -= 1
             for i in range(linecount + 1):
                 list.insert(i, "    " + theList[i])
             mpconfig.editorList[mpconfig.currentTabIndex].textCursor().insertText(newline.join(list))
             self.setModified(True)
-            #            mpconfig.editorList[mpconfig.currentTabIndex].find(ot)
             self.statusBar().showMessage("tabs indented")
 
     def unindentLine(self):
@@ -2068,12 +2032,13 @@ class pyEditor(QMainWindow):
             QApplication.setOverrideCursor(Qt.WaitCursor)
             outstr = QTextStream(file)
             outstr << mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()   # write text to file & close
+            file.close()
             self.setModified(False)
             #self.fname = QFileInfo(fpath.fileName())
             self.statusBar().showMessage('File ' + fn + ' saved.')
             self.setCurrentFile(fpath, False)
             mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
-            self.showDirectoryTree(self.setx.getCurProjectPath())
+            self.viewProjectFiles(self.setx.getCurProjectPath())
             QApplication.restoreOverrideCursor()
         else:
             self.fileSaveAs()
@@ -2100,7 +2065,7 @@ class pyEditor(QMainWindow):
 
         self.tabsList.setTabText(self.tabsList.currentIndex(), fn)
         self.fileSave()
-        self.showDirectoryTree(fpath)
+        self.viewProjectFiles(fpath)
 
     def deleteFile(self):
         tcount = self.tabsList.count()
@@ -2137,7 +2102,7 @@ class pyEditor(QMainWindow):
 
             if os.path.exists(fpath):
                 os.remove(fpath)
-                self.showDirectoryTree(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
+                self.viewProjectFiles(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
                 if tcount == 1:
                     mpconfig.editorList[0].clear()
                     mpconfig.editorList[0].textHasChanged = False
@@ -2176,7 +2141,7 @@ class pyEditor(QMainWindow):
             return
 
         os.rename(cur_path + '/' + old_fname, cur_path + '/' + self.new_fname)
-        self.showDirectoryTree(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
+        self.viewProjectFiles(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
         return
 
     def rename_accept(self):
@@ -2221,9 +2186,12 @@ class pyEditor(QMainWindow):
                     <span style='color: #3465a4; font-size: 20pt;font-weight: bold;'
                     >microPy 1.0</strong></span></p><h3>MicroPython Integrated Development Environment</h3>By J. Hoeppner@Abbykus 2022
                     <br>
-                    <span style='color: #8a8a8a; font-size: 9pt;'>Original code Forked from PyEdit2 by Axel Schneider @2017</strong></span></p>
+                    <span style='color: #8a8a8a; font-size: 9pt;'>Forked from PyEdit2 by Axel Schneider @2017</strong></span></p>
                         """
         self.infobox(title, message)
+
+    def settingsmenu(self):
+        return
 
     def commentBlock(self):
         mpconfig.editorList[mpconfig.currentTabIndex].copy()
@@ -2708,7 +2676,7 @@ if __name__ == '__main__':
     win = pyEditor()
     win.setWindowTitle("MicroPy IDE" + "[*]")
     win.show()
-    win.resetTargetDevice()
+    # win.resetTargetDevice()
     win.viewTargetFiles()
     if len(argv) > 1:
         print('argv= ' + argv[1])

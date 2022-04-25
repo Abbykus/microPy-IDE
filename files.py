@@ -159,7 +159,7 @@ class Files(object):
                 r = []
                 for f in listdir('{0}'):
                     size = os.stat(f)[6]                    
-                    r.append('{{0}} - {{1}} bytes'.format(f, size))
+                    r.append('{{0}};{{1}} bytes'.format(f, size))
                 print(r)
             """.format(
                 directory
@@ -172,6 +172,7 @@ class Files(object):
             )
         errbytes = self._mpboard.enter_raw_repl()
         if not errbytes.startswith(b'Failed'):
+            # remove indenting as micropython will auto-indent script
             out = self._mpboard.exec_(textwrap.dedent(command))
             self._mpboard.exit_raw_repl()
             # Parse the result list and return it.
@@ -179,7 +180,7 @@ class Files(object):
             return ast.literal_eval(out.decode("utf-8"))
         else:
             self._mpboard.ignoreSerial = False
-            errstr = errbytes.decode('utf-8')
+            errstr = errbytes.decode('utf-8')       # convert byte array to string
             return [errstr]
 
     def mkdir(self, directory, exists_okay=False):
