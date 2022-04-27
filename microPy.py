@@ -15,7 +15,7 @@ from PyQt5.QtCore import (Qt, QVariant, QRect, QDir, QFile, QFileInfo, QTextStre
                           QProcess, QPoint, QSize, QCoreApplication, QStringListModel, QLibraryInfo, QIODevice, QEvent,
                           pyqtSlot, QModelIndex, QThread)
 
-from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
+from PyQt5.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
 #from PyQt5.QtSerialPort import QSerialPort
 
 from sys import argv
@@ -54,6 +54,7 @@ class PyTextEdit(QPlainTextEdit):
 
         self.textHasChanged = False
         self.installEventFilter(self)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
         self._completer = None
         self.completer = QCompleter(self)
         root = QFileInfo.path(QFileInfo(QCoreApplication.arguments()[0]))
@@ -159,8 +160,6 @@ class PyTextEdit(QPlainTextEdit):
                     line = str(line)
 
                 self.words.append(line)
-        #                print("\n".join(self.wordList))
-        #                self.words.append("\n".join(self.wordList))
 
         QApplication.restoreOverrideCursor()
         return QStringListModel(self.words, self.completer)
@@ -242,24 +241,21 @@ class pyEditor(QMainWindow):
                 super(Vseparator, self).__init__()
                 self.setFrameShape(self.VLine | self.Box)  #self.Sunken)
 
-        ### Critical section lock/release
-        #self.LOCK = threading.Lock()
-
         self.extProc = QProcess()       # used to start external programs (processes)
 
-        ### Serial data buffer
-        self.serialByteArray = b''
-        self.serialDataRcvd = False
-
-        self.targetScript = b''
-
-        ### Initialize settings
-        self.setx = settings.Settings()
-
+        # Create the target REPL shell
         self.shellText = QTextEdit()
         self.shellText.setObjectName("shellText")
+        self.shellText.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.shellText.setReadOnly(False)
-        # self.shellText.setTextInteractionFlags(Qt.TextSelectableByKeyboard)
+        self.shellText.installEventFilter(self)
+        self.shellText.setMinimumHeight(28)
+        self.shellText.setStyleSheet(stylesheet2(self))
+        self.shellText.setContextMenuPolicy(Qt.PreventContextMenu)
+        # self.shellText.customContextMenuRequested.connect(self.targetViewerContextMenu)
+
+        # Instantiate settings class
+        self.setx = settings.Settings()
         _device = self.setx.getSerialPort()
         _baud = self.setx.getBaudRate()
         self.mpBoard = pyboard.Pyboard(self.shellText, _device, _baud)
@@ -267,12 +263,7 @@ class pyEditor(QMainWindow):
 
         self.TargetFileList = []
 
-        # # set up the non-persistent system settings
-        # print('os name= ' + self.setx.getOS())     # find name of os, 'linux', 'windows', etc
-        # print('project path= ' + self.setx.getCurProjectPath())
-        # print('project name= ' + self.setx.getCurProjectName())
-        # print('app path= ' + self.setx.getAppPath())
-
+        # create tabbed editor list
         self.tabsList = QTabWidget()
         self.tabsList.setTabsClosable(True)
         self.tabsList.setTabVisible(0, True)
@@ -280,11 +271,12 @@ class pyEditor(QMainWindow):
         self.tabsList.tabCloseRequested.connect(self.remove_tab)
 
         self.cursor = QTextCursor()
-        self.wordList = []
+
+        # statusbar
+        self.statusBar().setStyleSheet(stylesheet2(self))
         self.statusBar().showMessage(self.setx.getAppPath())
-        self.lineLabel = QLabel("line")
+        self.lineLabel = QLabel(" Ln:1 | Col:0")
         self.statusBar().addPermanentWidget(self.lineLabel)
-        self.windowList = []
         self.recentFileActs = []
 
         self.setAttribute(Qt.WA_DeleteOnClose)
@@ -319,38 +311,19 @@ class pyEditor(QMainWindow):
         self.targetFileViewer.addTopLevelItem(targ1)
         self.targetFileViewer.expandAll()
         self.targetFileViewer.itemDoubleClicked.connect(self.targetFileViewerDblClicked)
-        self.targetFileViewer.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.targetFileViewer.customContextMenuRequested.connect(self.targetViewerContextMenu)
-
-        # Editor Widget ...
-        # self.extra_selections = []
-        # self.mainText = "#!/usr/bin/python3\n# -*- coding: utf-8 -*-\n"
-        # self.fname = ""
-        # self.filename = ""
-        # self.mypython = "3"
-
-        # shellText widget - interacts with the target over serial
-        # self.shellText = QTextEdit()
-        # self.shellText.setObjectName("shellText")
-        self.shellText.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.shellText.setReadOnly(False)
-        self.shellText.installEventFilter(self)
-
-        # statusbar
-        self.statusBar()
-        self.statusBar().setStyleSheet(stylesheet2(self))
-        self.statusBar().showMessage('Welcome')
+        self.targetFileViewer.setContextMenuPolicy(Qt.PreventContextMenu)   #Qt.CustomContextMenu)
+        # self.targetFileViewer.customContextMenuRequested.connect(self.targetViewerContextMenu)
 
         ### begin toolbar
         tb = self.addToolBar("File")
         tb.setStyleSheet(stylesheet2(self))
         tb.setContextMenuPolicy(Qt.PreventContextMenu)
         tb.setIconSize(QSize(iconsize))
-        tb.setMovable(True)
+        tb.setMovable(False)
         tb.setAllowedAreas(Qt.AllToolBarAreas)
-        tb.setFloatable(True)
+        tb.setFloatable(False)
 
-        ### Create action button objects used by menus and toolbars ###
+        # Create action button objects used by menus and toolbars
         self.newProjectAct = QAction("&Create New Project", self, shortcut=QKeySequence.New, triggered=self.createNewProject)
         self.newProjectAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/new_project"))
 
@@ -362,8 +335,6 @@ class pyEditor(QMainWindow):
 
         self.newFileAct = QAction("&New File", self, shortcut=QKeySequence.New, triggered=self.newFile)
         self.newFileAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/newfile"))
-        # if len(self.settings.value('CUR_PROJECT_NAME', '')) == 0:
-        #     self.newFileAct.setEnabled(False)
 
         self.openFileAct = QAction("&Open File", self, shortcut=QKeySequence.Open,  triggered=self.openFile)
         self.openFileAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/openfile"))
@@ -449,16 +420,16 @@ class pyEditor(QMainWindow):
         self.eraseTargetAct = QAction("&Erase Target Memory", self, shortcut='', triggered=self.eraseTargetMemory)
         self.eraseTargetAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/burn"))
 
-        self.programTargetAct = QAction("&Program Target", self, shortcut='', triggered=self.programTargetMemory)
+        self.programTargetAct = QAction("&Flash Target Firmware", self, shortcut='', triggered=self.flashTargetFirmware)
         self.programTargetAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/python"))
 
-        ### file buttons
+        # project & files toolbar buttons
         tb.addAction(self.newProjectAct)
         tb.addAction(self.openProjectAct)
         tb.addAction(self.closeProjectAct)
         tb.addSeparator()
         tb.addSeparator()
-        tb.addWidget(Vseparator())
+        tb.addWidget(Vseparator())      # visual vertical line seperator
         tb.addSeparator()
         tb.addSeparator()
         tb.addAction(self.newFileAct)
@@ -537,14 +508,14 @@ class pyEditor(QMainWindow):
         ### exit button
         tb.addAction(self.exitAct)
 
-        ### end toolbar
-
         ### find / replace toolbar
         self.addToolBarBreak()
         tbf = self.addToolBar("Find")
         tbf.setStyleSheet(stylesheet2(self))
         tbf.setContextMenuPolicy(Qt.PreventContextMenu)
         tbf.setIconSize(QSize(iconsize))
+        tbf.setMovable(False)
+        tbf.setFloatable(False)
         self.findfield = QLineEdit()
         self.findfield.setStyleSheet(stylesheet2(self))
         self.findfield.addAction(QIcon.fromTheme("edit-find"), QLineEdit.LeadingPosition)
@@ -616,9 +587,9 @@ class pyEditor(QMainWindow):
                               triggered=self.reindentText))
 
         # 'File' dropdown menu
-        bar = self.menuBar()
-        bar.setStyleSheet(stylesheet2(self))
-        self.filemenu = bar.addMenu("File")
+        menu_bar = self.menuBar()
+        menu_bar.setStyleSheet(stylesheet2(self))
+        self.filemenu = menu_bar.addMenu("File")
         self.filemenu.setStyleSheet(stylesheet2(self))
         self.separatorAct = self.filemenu.addSeparator()
         self.filemenu.addSeparator()
@@ -645,24 +616,24 @@ class pyEditor(QMainWindow):
         self.filemenu.addAction(self.exitAct)
 
         ### Top level menu bar 'Edit'
-        editmenu = bar.addMenu("Edit")
+        editmenu = menu_bar.addMenu("Edit")
         editmenu.setStyleSheet(stylesheet2(self))
         editmenu.addAction(
-            QAction(QIcon.fromTheme('edit-undo'), "Undo", self, triggered=PyTextEdit.undo, shortcut="Ctrl+u"))
+            QAction(QIcon.fromTheme('edit-undo'), "Undo", self, triggered=self.textUndo, shortcut="Ctrl+z"))
         editmenu.addAction(
-            QAction(QIcon.fromTheme('edit-redo'), "Redo", self, triggered=PyTextEdit.redo, shortcut="Shift+Ctrl+u"))
+            QAction(QIcon.fromTheme('edit-redo'), "Redo", self, triggered=self.textRedo, shortcut="Shift+Ctrl+u"))
         editmenu.addSeparator()
         editmenu.addAction(
-            QAction(QIcon.fromTheme('edit-copy'), "Copy", self, triggered=PyTextEdit.copy, shortcut="Ctrl+c"))
+            QAction(QIcon.fromTheme('edit-copy'), "Copy", self, triggered=self.textCopy, shortcut="Ctrl+c"))
         editmenu.addAction(
-            QAction(QIcon.fromTheme('edit-cut'), "Cut", self, triggered=PyTextEdit.cut, shortcut="Ctrl+x"))
+            QAction(QIcon.fromTheme('edit-cut'), "Cut", self, triggered=self.textCut, shortcut="Ctrl+x"))
         editmenu.addAction(
-            QAction(QIcon.fromTheme('edit-paste'), "Paste", self, triggered=PyTextEdit.paste, shortcut="Ctrl+v"))
+            QAction(QIcon.fromTheme('edit-paste'), "Paste", self, triggered=self.textPaste, shortcut="Ctrl+v"))
         editmenu.addAction(
-            QAction(QIcon.fromTheme('edit-delete'), "Delete", self, triggered=PyTextEdit.cut, shortcut="Del"))
+            QAction(QIcon.fromTheme('edit-delete'), "Delete", self, triggered=self.textCut, shortcut="Del"))
         editmenu.addSeparator()
         editmenu.addAction(
-            QAction(QIcon.fromTheme('edit-select-all'), "Select All", self, triggered=PyTextEdit.selectAll,
+            QAction(QIcon.fromTheme('edit-select-all'), "Select All", self, triggered=self.textSelectAll,
                     shortcut="Ctrl+a"))
         editmenu.addSeparator()
         editmenu.addAction(self.commentAct)
@@ -677,14 +648,13 @@ class pyEditor(QMainWindow):
         editmenu.addAction(self.indentAct)
         editmenu.addAction(self.indentLessAct)
 
-        self.settings_menu = bar.addMenu("Settings")
+        self.settings_menu = menu_bar.addMenu("Settings")
         self.settings_menu.setStyleSheet(stylesheet2(self))
         self.settings_menu.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/settings"), "&Settings Menu", self.settingsmenu)
         self.settings_menu.addSeparator()
 
-
         ### Top level menu bar 'Help'
-        self.helpmenu = bar.addMenu("Help")
+        self.helpmenu = menu_bar.addMenu("Help")
         self.helpmenu.setStyleSheet(stylesheet2(self))
         self.separatorAct = self.helpmenu.addSeparator()
 
@@ -695,10 +665,6 @@ class pyEditor(QMainWindow):
         ### Zeal button
         self.helpmenu.addAction(self.zealAct)
         self.helpmenu.addSeparator()
-
-        ### shell text widget
-        self.shellText.setMinimumHeight(28)
-        self.shellText.setStyleSheet(stylesheet2(self))
 
         ### Micropython toolbar
         mptb = self.addToolBar("Run")
@@ -881,13 +847,31 @@ class pyEditor(QMainWindow):
             self.baudrates.setCurrentIndex(indx)
             self.mpBoard.setSerialPortBaudrate(baud)
 
-    def getFilesInDir(self, dirpath):
-        files = []
-        for file in os.listdir(dirpath):
-            fpath = dirpath + '/' + file
-            if os.path.isfile(fpath):
-                files.append(file)
-        return files
+    # def getFilesInDir(self, dirpath):
+    #     files = []
+    #     for file in os.listdir(dirpath):
+    #         fpath = dirpath + '/' + file
+    #         if os.path.isfile(fpath):
+    #             files.append(file)
+    #     return files
+
+    def textSelectAll(self):
+        mpconfig.editorList[mpconfig.currentTabIndex].selectAll()
+
+    def textUndo(self):
+        mpconfig.editorList[mpconfig.currentTabIndex].undo()
+
+    def textRedo(self):
+        mpconfig.editorList[mpconfig.currentTabIndex].redo()
+
+    def textCopy(self):
+        mpconfig.editorList[mpconfig.currentTabIndex].copy()
+
+    def textCut(self):
+        mpconfig.editorList[mpconfig.currentTabIndex].cut()
+
+    def textPaste(self):
+        mpconfig.editorList[mpconfig.currentTabIndex].paste()
 
 
     def isProjectValid(self, proj_name):
@@ -896,13 +880,13 @@ class pyEditor(QMainWindow):
         path = self.setx.getCurProjectPath()
         return os.path.isdir(path)
 
-    def getDirectory(self):
-        gdir_dialog = QFileDialog(self, 'Select Directory', self.setx.getAppPath(), None)
-        gdir_dialog.setFileMode(QFileDialog.DirectoryOnly)
-        #dialog.setSidebarUrls([QtCore.QUrl.fromLocalFile(place)])
-        if gdir_dialog.exec_() == QDialog.Accepted:
-            new_dir = gdir_dialog.selectedFiles()[0]
-            self.viewProjectFiles(new_dir)
+    # def getDirectory(self):
+    #     gdir_dialog = QFileDialog(self, 'Select Directory', self.setx.getAppPath(), None)
+    #     gdir_dialog.setFileMode(QFileDialog.DirectoryOnly)
+    #     #dialog.setSidebarUrls([QtCore.QUrl.fromLocalFile(place)])
+    #     if gdir_dialog.exec_() == QDialog.Accepted:
+    #         new_dir = gdir_dialog.selectedFiles()[0]
+    #         self.viewProjectFiles(new_dir)
 
     # View folders & files in the 'path' directory to the projectFileViewer tree widget
     def viewProjectFiles(self, curpath):
@@ -1004,51 +988,51 @@ class pyEditor(QMainWindow):
         return
 
     # Function to display context menu on the target file viewer
-    def targetViewerContextMenu(self, position):
-        tv_menu = QMenu(self.targetFileViewer)
-        tv_menu.addSection('TARGET ACTIONS:')
-        tv_act1 = QAction("Reset Target")
-        tv_act1.setIcon(QIcon(self.setx.getAppPath() + "/icons/restart"))
-        tv_act1.setIconVisibleInMenu(True)
-        tv_act1.triggered.connect(self.resetTargetDevice)
-        tv_menu.addAction(tv_act1)
-        tv_act2 = QAction("Run Script on Target")
-        tv_act2.setIcon(QIcon(self.setx.getAppPath() + "/icons/run"))
-        tv_act2.setIconVisibleInMenu(True)
-        tv_act2.triggered.connect(self.runTargetScript)
-        tv_menu.addAction(tv_act2)
-        tv_act3 = QAction("Stop Target Script")
-        tv_act3.setIcon(QIcon(self.setx.getAppPath() + "/icons/stop"))
-        tv_act3.setIconVisibleInMenu(True)
-        tv_act3.triggered.connect(self.stopTargetScript)
-        tv_menu.addAction(tv_act3)
-        tv_act4 = QAction("Download File to Target")
-        tv_act4.setIcon(QIcon(self.setx.getAppPath() + "/icons/download"))
-        tv_act4.setIconVisibleInMenu(True)
-        tv_act4.triggered.connect(self.downloadScript)
-        tv_menu.addAction(tv_act4)
-        tv_act5 = QAction("Upload File from Target")
-        tv_act5.setIcon(QIcon(self.setx.getAppPath() + "/icons/upload"))
-        tv_act5.setIconVisibleInMenu(True)
-        tv_act5.triggered.connect(self.uploadScript)
-        tv_menu.addAction(tv_act5)
-        tv_act6 = QAction("Remove File from Target")
-        tv_act6.setIcon(QIcon(self.setx.getAppPath() + "/icons/delete"))
-        tv_act6.setIconVisibleInMenu(True)
-        tv_act6.triggered.connect(self.removeScript)
-        tv_menu.addAction(tv_act6)
-        tv_act7 = QAction("New Target Folder")
-        tv_act7.setIcon(QIcon(self.setx.getAppPath() + "/icons/folder_add"))
-        tv_act7.setIconVisibleInMenu(True)
-        tv_act7.triggered.connect(self.newTargetFolder)
-        tv_menu.addAction(tv_act7)
-        tv_act8 = QAction("Remove Target Folder")
-        tv_act8.setIcon(QIcon(self.setx.getAppPath() + "/icons/folder_del"))
-        tv_act8.setIconVisibleInMenu(True)
-        tv_act8.triggered.connect(self.newTargetFolder)
-        tv_menu.addAction(tv_act8)
-        position.setY(position.y() + 50)
-        tv_menu.exec(self.targetFileViewer.mapToGlobal(position))
+    # def targetViewerContextMenu(self, position):
+    #     tv_menu = QMenu(self.shellText)
+    #     tv_menu.addSection('TARGET ACTIONS:')
+    #     tv_act1 = QAction("Reset Target")
+    #     tv_act1.setIcon(QIcon(self.setx.getAppPath() + "/icons/restart"))
+    #     tv_act1.setIconVisibleInMenu(True)
+    #     tv_act1.triggered.connect(self.resetTargetDevice)
+    #     tv_menu.addAction(tv_act1)
+    #     tv_act2 = QAction("Run Script on Target")
+    #     tv_act2.setIcon(QIcon(self.setx.getAppPath() + "/icons/run"))
+    #     tv_act2.setIconVisibleInMenu(True)
+    #     tv_act2.triggered.connect(self.runTargetScript)
+    #     tv_menu.addAction(tv_act2)
+    #     tv_act3 = QAction("Stop Target Script")
+    #     tv_act3.setIcon(QIcon(self.setx.getAppPath() + "/icons/stop"))
+    #     tv_act3.setIconVisibleInMenu(True)
+    #     tv_act3.triggered.connect(self.stopTargetScript)
+    #     tv_menu.addAction(tv_act3)
+    #     tv_act4 = QAction("Download File to Target")
+    #     tv_act4.setIcon(QIcon(self.setx.getAppPath() + "/icons/download"))
+    #     tv_act4.setIconVisibleInMenu(True)
+    #     tv_act4.triggered.connect(self.downloadScript)
+    #     tv_menu.addAction(tv_act4)
+    #     tv_act5 = QAction("Upload File from Target")
+    #     tv_act5.setIcon(QIcon(self.setx.getAppPath() + "/icons/upload"))
+    #     tv_act5.setIconVisibleInMenu(True)
+    #     tv_act5.triggered.connect(self.uploadScript)
+    #     tv_menu.addAction(tv_act5)
+    #     tv_act6 = QAction("Remove File from Target")
+    #     tv_act6.setIcon(QIcon(self.setx.getAppPath() + "/icons/delete"))
+    #     tv_act6.setIconVisibleInMenu(True)
+    #     tv_act6.triggered.connect(self.removeScript)
+    #     tv_menu.addAction(tv_act6)
+    #     tv_act7 = QAction("New Target Folder")
+    #     tv_act7.setIcon(QIcon(self.setx.getAppPath() + "/icons/folder_add"))
+    #     tv_act7.setIconVisibleInMenu(True)
+    #     tv_act7.triggered.connect(self.newTargetFolder)
+    #     tv_menu.addAction(tv_act7)
+    #     tv_act8 = QAction("Remove Target Folder")
+    #     tv_act8.setIcon(QIcon(self.setx.getAppPath() + "/icons/folder_del"))
+    #     tv_act8.setIconVisibleInMenu(True)
+    #     tv_act8.triggered.connect(self.newTargetFolder)
+    #     tv_menu.addAction(tv_act8)
+    #     position.setY(position.y() + 50)
+    #     tv_menu.exec(self.shellText.mapToGlobal(position))
 
     # Function to display context menu on the project file viewer
     def projectViewerContextMenu(self, position):
@@ -1133,8 +1117,8 @@ class pyEditor(QMainWindow):
         text_editor.setObjectName('editor')
         text_editor.textChanged.connect(self.onTextHasChanged)
         text_editor.cursorPositionChanged.connect(self.onCursorPositionChanged)
-        text_editor.setContextMenuPolicy(Qt.CustomContextMenu)
-        text_editor.customContextMenuRequested.connect(self.contextMenuRequested)
+        # text_editor.setContextMenuPolicy(Qt.CustomContextMenu)
+        text_editor.customContextMenuRequested.connect(self.editorContextMenu)
         text_editor.setLineWrapMode(QPlainTextEdit.NoWrap)
 
         horiz_sbar = QScrollBar()
@@ -1221,7 +1205,6 @@ class pyEditor(QMainWindow):
                     self.mpBoard.block_echo = True
                     self.mpBoard.serialWrite(bytes(event.text(), 'utf-8'))
         return super().eventFilter(obj, event)
-
 
     # Project File Viewer was double clicked
     def projectFileViewerDblClicked(self, index):
@@ -1526,7 +1509,7 @@ class pyEditor(QMainWindow):
         return
 
     # Program target memory with (presumably) microPython
-    def programTargetMemory(self):
+    def flashTargetFirmware(self):
         ret = QMessageBox.question(self, "Program Target Memory",
                                    "<h4><p>This will PROGRAM target flash memory.</p>\n" \
                                    "<p>Do you want to CONTINUE programming?</p></h4>",
@@ -1695,33 +1678,101 @@ class pyEditor(QMainWindow):
                 mpconfig.editorList[mpconfig.currentTabIndex].textCursor().insertText(colorname)
 
     # QPlainTextEdit contextMenu (Right Click on current python editor))
-    def contextMenuRequested(self, point):
-        cmenu = QMenu()
-        cmenu = mpconfig.editorList[mpconfig.currentTabIndex].createStandardContextMenu()
-        cmenu.addSeparator()
-        cmenu.addAction(self.jumpToAct)
-        cmenu.addSeparator()
-        if not mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText() == "":
-            cmenu.addAction(QIcon.fromTheme("gtk-find-and-replace"), "replace all occurrences with", self.replaceThis)
-            cmenu.addSeparator()
-        cmenu.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/zeal"), "Zeal Developer Help", self.showZeal)
-        cmenu.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/find"), "Find this (F10)", self.findNextWord)
-        cmenu.addSeparator()
-        cmenu.addSeparator()
-        cmenu.addAction(self.commentAct)
-        cmenu.addAction(self.uncommentAct)
-        cmenu.addSeparator()
-        if not mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText() == "":
-            cmenu.addAction(self.commentBlockAct)
-            cmenu.addAction(self.uncommentBlockAct)
-            cmenu.addSeparator()
-            cmenu.addAction(self.indentAct)
-            cmenu.addAction(self.indentLessAct)
-        cmenu.addSeparator()
-        cmenu.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/color1"), "Insert QColor", self.insertColor)
-        cmenu.addSeparator()
-        cmenu.addAction(QIcon.fromTheme("preferences-color"), "Insert Color Hex Value", self.changeColor)
-        cmenu.exec_(mpconfig.editorList[mpconfig.currentTabIndex].mapToGlobal(point))
+    def editorContextMenu(self, position):
+        edit_context_menu = QMenu(mpconfig.editorList[mpconfig.currentTabIndex])
+        edit_context_menu.setObjectName("edit_context_menu")
+        edit_context_menu.setSeparatorsCollapsible(False)
+        edit_context_menu.setToolTipsVisible(True)
+        #edit_context_menu.addSection('EDITOR ACTIONS:')
+        edit_context_menu.setStyleSheet("QMenu { background-color: #202020;\n"  
+                              "color: #d0d0d0;\n"
+                              "font-size: 9pt;\n"
+                              "border-style: solid;\n"
+                              "border-width: 1px;\n"
+                              "border-radius: 5px; }"
+                              "QMenu#edit_context_menu:selected { background-color: #d8691a; color: #d0d0d0; }")
+
+
+        edcm_act1 = QAction("Undo")
+        edcm_act1.setIcon(QIcon.fromTheme('edit-undo'))
+        edcm_act1.setIconVisibleInMenu(True)
+        edcm_act1.triggered.connect(self.textUndo)
+        edit_context_menu.addAction(edcm_act1)
+
+        edcm_act2 = QAction("Redo")
+        edcm_act2.setIcon(QIcon.fromTheme('edit-redo'))
+        edcm_act2.setIconVisibleInMenu(True)
+        edcm_act2.triggered.connect(self.textRedo)
+        edit_context_menu.addAction(edcm_act2)
+
+        edcm_act3 = QAction("Copy")
+        edcm_act3.setIcon(QIcon.fromTheme('edit-copy'))
+        edcm_act3.setIconVisibleInMenu(True)
+        edcm_act3.triggered.connect(self.textCopy)
+        edit_context_menu.addAction(edcm_act3)
+
+        edcm_act4 = QAction("Cut")
+        edcm_act4.setIcon(QIcon.fromTheme('edit-cut'))
+        edcm_act4.setIconVisibleInMenu(True)
+        edcm_act4.triggered.connect(self.textCut)
+        edit_context_menu.addAction(edcm_act4)
+
+        edcm_act5 = QAction("Paste")
+        edcm_act5.setIcon(QIcon.fromTheme('edit-paste'))
+        edcm_act5.setIconVisibleInMenu(True)
+        edcm_act5.triggered.connect(self.textPaste)
+        edit_context_menu.addAction(edcm_act5)
+
+        edcm_act6 = QAction("Delete")
+        edcm_act6.setIcon(QIcon.fromTheme('edit-delete'))
+        edcm_act6.setIconVisibleInMenu(True)
+        edcm_act6.triggered.connect(self.textCut)
+        edit_context_menu.addAction(edcm_act6)
+
+        edcm_act7 = QAction("Select All")
+        edcm_act7.setIcon(QIcon.fromTheme('edit-select-all'))
+        edcm_act7.setIconVisibleInMenu(True)
+        edcm_act7.triggered.connect(self.textSelectAll)
+        edit_context_menu.addAction(edcm_act7)
+
+        edcm_act8 = QAction("Comment Line")
+        edcm_act8.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/comment"))
+        edcm_act8.setIconVisibleInMenu(True)
+        edcm_act8.triggered.connect(self.commentLine)
+        edit_context_menu.addAction(edcm_act8)
+
+        edcm_act9 = QAction("UnComment Line")
+        edcm_act9.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/uncomment"))
+        edcm_act9.setIconVisibleInMenu(True)
+        edcm_act9.triggered.connect(self.uncommentLine)
+        edit_context_menu.addAction(edcm_act9)
+
+        edcm_act910 = QAction("Comment Block")
+        edcm_act910.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/commentBlock"))
+        edcm_act910.setIconVisibleInMenu(True)
+        edcm_act910.triggered.connect(self.commentBlock)
+        edit_context_menu.addAction(edcm_act910)
+
+        edcm_act911 = QAction("UnComment Block")
+        edcm_act911.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/uncommentBlock"))
+        edcm_act911.setIconVisibleInMenu(True)
+        edcm_act911.triggered.connect(self.uncommentBlock)
+        edit_context_menu.addAction(edcm_act911)
+
+        edcm_act912 = QAction("Indent More")
+        edcm_act912.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/indent"))
+        edcm_act912.setIconVisibleInMenu(True)
+        edcm_act912.triggered.connect(self.indentLine)
+        edit_context_menu.addAction(edcm_act912)
+
+        edcm_act913 = QAction("Indent Less")
+        edcm_act913.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/unindent"))
+        edcm_act913.setIconVisibleInMenu(True)
+        edcm_act913.triggered.connect(self.unindentLine)
+        edit_context_menu.addAction(edcm_act913)
+
+        position.setY(position.y() + 0)
+        edit_context_menu.exec(mpconfig.editorList[mpconfig.currentTabIndex].mapToGlobal(position))
 
     def replaceThis(self):
         rtext = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText()
@@ -1772,33 +1823,14 @@ class pyEditor(QMainWindow):
             ot = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText()
             theList = ot.splitlines()
             linecount = ot.count(newline)
+            if linecount and ot.endswith(newline):  # don't count the last newline
+                linecount -= 1
             for i in range(linecount + 1):
                 list.insert(i, (theList[i]).replace("    ", "", 1))
             mpconfig.editorList[mpconfig.currentTabIndex].textCursor().insertText(newline.join(list))
             self.setModified(True)
             #            mpconfig.editorList[mpconfig.currentTabIndex].find(ot)
             self.statusBar().showMessage("tabs deleted")
-
-    # def dataReady(self):
-    #     out = ""
-    #     try:
-    #         out = str(self.process.readAll(), encoding='utf8').rstrip()
-    #     except TypeError:
-    #         self.msgbox("Error", str(self.process.readAll(), encoding='utf8'))
-    #         out = str(self.process.readAll()).rstrip()
-    #     self.shellText.moveCursor(self.cursor.Start)
-    #     self.shellText.append(out)
-    #     if self.shellText.find("line", QTextDocument.FindWholeWords):
-    #         t = self.shellText.toPlainText().partition("line")[2].partition("\n")[0].lstrip()
-    #         if t.find(",", 0):
-    #             tr = t.partition(",")[0]
-    #         else:
-    #             tr = t.lstrip()
-    #         self.gotoErrorLine(tr)
-    #     else:
-    #         return
-    #     self.shellText.moveCursor(self.cursor.End)
-    #     self.shellText.ensureCursorVisible()
 
     def createActions(self):
         maxf = int(self.setx.getMaxRecentFiles())
@@ -1984,8 +2016,6 @@ class pyEditor(QMainWindow):
             if inFile.open(QFile.ReadWrite | QFile.Text):
                 text = inFile.readAll()         # get bytes from file
                 text = str(text, encoding='utf8')   # convert bytes to string
-                # files = self.getFilesInDir(self.setx.getCurProjectPath() +
-                                           # '/' + self.setx.getCurProjectName())
                 fn = os.path.basename(path)
                 dup_fname = self.searchTabNames(fn, True)
                 # if the editor tab contains a file name and the new file is not a duplicate, create new editor tab
@@ -2154,6 +2184,7 @@ class pyEditor(QMainWindow):
 
     def closeEvent(self, e):
         self.writeSettings()
+        self.setx.setWinClose()
         if self.maybeSave():
             e.accept()
         else:
@@ -2191,6 +2222,7 @@ class pyEditor(QMainWindow):
         self.infobox(title, message)
 
     def settingsmenu(self):
+        self.setx.openSettingsWindow()
         return
 
     def commentBlock(self):
@@ -2560,7 +2592,7 @@ class pyEditor(QMainWindow):
 
     def handlePrint(self):
         if mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() == "":
-            self.statusBar().showMessage("no text")
+            self.statusBar().showMessage("No text to Print!")
         else:
             dialog = QPrintDialog()
             if dialog.exec_() == QDialog.Accepted:
@@ -2569,9 +2601,9 @@ class pyEditor(QMainWindow):
 
     def handlePrintPreview(self):
         if mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() == "":
-            self.statusBar().showMessage("no text")
+            self.statusBar().showMessage("No text to Preview!")
         else:
-            dialog = QtPrintSupport.QPrintPreviewDialog()
+            dialog = QPrintPreviewDialog()
             dialog.setFixedSize(900, 650)
             dialog.paintRequested.connect(self.handlePaintRequest)
             dialog.exec_()
