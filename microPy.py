@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (QPlainTextEdit, QWidget, QVBoxLayout, QApplication,
                              QCompleter, QHBoxLayout, QTextEdit, QToolBar, QComboBox, QAction, QLineEdit, QDialog,
                              QPushButton, QToolButton, QMenu, QMainWindow, QInputDialog, QColorDialog, QStatusBar,
                              QSystemTrayIcon, QSplitter, QTreeWidget, QTreeWidgetItem, QTabWidget, QDialogButtonBox,
-                             QScrollBar, QSpacerItem, QSizePolicy, QLayout, QStyle, QFrame, QHeaderView)
+                             QScrollBar, QSpacerItem, QSizePolicy, QLayout, QStyle, QFrame, QHeaderView, QShortcut)
 from PyQt5.QtGui import (QIcon, QPainter, QTextFormat, QColor, QTextCursor, QKeySequence, QClipboard, QTextDocument,
                          QPixmap, QStandardItemModel, QStandardItem, QCursor, QPalette)
 from PyQt5.QtCore import (Qt, QVariant, QRect, QDir, QFile, QFileInfo, QTextStream, QSettings, QTranslator, QLocale,
@@ -65,6 +65,13 @@ class PyTextEdit(QPlainTextEdit):
         self.completer.setCompletionRole(Qt.EditRole)
         self.completer.setMaxVisibleItems(10)
         self.setCompleter(self.completer)
+
+        self.ctrl_f = QShortcut(QKeySequence('Ctrl+F'), self)
+    #     self.ctrl_f.activated.connect(self.ctrlF)
+    #
+    # def ctrlF(self):
+    #     print('ctrl-f')
+    #     self.findfield.setFocus(True)
 
     def setCompleter(self, c):
         if self._completer is not None:
@@ -382,10 +389,10 @@ class pyEditor(QMainWindow):
                                      triggered=self.unindentLine, shortcut="F9")
 
         self.bookAct = QAction("Add Bookmark", self, triggered=self.addBookmark)
-        self.bookAct.setIcon(QIcon.fromTheme("previous"))
+        self.bookAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/bookmark"))
 
-        self.bookrefresh = QAction("Update Bookmarks", self, triggered=self.findBookmarks)
-        self.bookrefresh.setIcon(QIcon.fromTheme("view-refresh"))
+        self.bookrefresh = QAction("Clear Bookmarks", self, triggered=self.clearBookmarks)
+        self.bookrefresh.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/clear_bookmarks"))
 
         self.clearRecentAct = QAction("clear Recent Files List", self, triggered=self.clearRecentFiles)
         self.clearRecentAct.setIcon(QIcon.fromTheme("edit-clear"))
@@ -417,7 +424,7 @@ class pyEditor(QMainWindow):
         self.delFolderAct = QAction("&Remove Target Folder", self, shortcut='', triggered=self.rmTargetFolder)
         self.delFolderAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/folder_del"))
 
-        self.eraseTargetAct = QAction("&Erase Target Memory", self, shortcut='', triggered=self.eraseTargetMemory)
+        self.eraseTargetAct = QAction("&Erase Target Memory", self, shortcut='', triggered=self.eraseTargetFlash)
         self.eraseTargetAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/burn"))
 
         self.programTargetAct = QAction("&Flash Target Firmware", self, shortcut='', triggered=self.flashTargetFirmware)
@@ -519,7 +526,7 @@ class pyEditor(QMainWindow):
         self.findfield = QLineEdit()
         self.findfield.setStyleSheet(stylesheet2(self))
         self.findfield.addAction(QIcon.fromTheme("edit-find"), QLineEdit.LeadingPosition)
-        self.findfield.setClearButtonEnabled(True)
+        self.findfield.setClearButtonEnabled(False)
         self.findfield.setFixedWidth(150)
         self.findfield.setPlaceholderText("find")
         self.findfield.setToolTip("press RETURN to find")
@@ -530,7 +537,7 @@ class pyEditor(QMainWindow):
         self.replacefield = QLineEdit()
         self.replacefield.setStyleSheet(stylesheet2(self))
         self.replacefield.addAction(QIcon.fromTheme("edit-find-and-replace"), QLineEdit.LeadingPosition)
-        self.replacefield.setClearButtonEnabled(True)
+        self.replacefield.setClearButtonEnabled(False)
         self.replacefield.setFixedWidth(150)
         self.replacefield.setPlaceholderText("replace with")
         self.replacefield.setToolTip("press RETURN to replace the first")
@@ -540,7 +547,7 @@ class pyEditor(QMainWindow):
         tbf.addSeparator()
 
         self.repAllAct = QPushButton("Replace All")
-        self.repAllAct.setFixedWidth(100)
+        self.repAllAct.setFixedWidth(80)
         self.repAllAct.setStyleSheet(stylesheet2(self))
         self.repAllAct.setIcon(QIcon.fromTheme("gtk-find-and-replace"))
         self.repAllAct.clicked.connect(self.replaceAll)
@@ -570,8 +577,8 @@ class pyEditor(QMainWindow):
         tbf.addSeparator()
         self.bookmarks = QComboBox()
         self.bookmarks.setStyleSheet(stylesheet2(self))
-        self.bookmarks.setFixedWidth(280)
-        self.bookmarks.setToolTip("go to bookmark")
+        self.bookmarks.setFixedWidth(200)
+        self.bookmarks.setToolTip("Goto Bookmark")
         self.bookmarks.activated[str].connect(self.gotoBookmark)
         tbf.addWidget(self.bookmarks)
         tbf.addAction(self.bookAct)
@@ -1120,6 +1127,7 @@ class pyEditor(QMainWindow):
         # text_editor.setContextMenuPolicy(Qt.CustomContextMenu)
         text_editor.customContextMenuRequested.connect(self.editorContextMenu)
         text_editor.setLineWrapMode(QPlainTextEdit.NoWrap)
+        text_editor.ctrl_f.activated.connect(self.ctrl_F)
 
         horiz_sbar = QScrollBar()
         horiz_sbar.setOrientation(Qt.Horizontal)
@@ -1169,6 +1177,10 @@ class pyEditor(QMainWindow):
             self.tabsList.setCurrentIndex(self.tabsList.count()-1)
         self.tabsList.tabBar().setUsesScrollButtons(False)
         return new_tab
+
+    # Ctrl-F pressed in plain text editor - focus on find field
+    def ctrl_F(self):
+        self.findfield.setFocus(True)
 
     # text in the editor of the current selected tab has changed
     def onTextHasChanged(self):
@@ -1220,16 +1232,19 @@ class pyEditor(QMainWindow):
         # ignore dbl click on serial port name
         if titem != self.setx.getSerialPort():
             self.uploadScript(titem)
-            #print(titem)
+
 
     # Reset ESP32 target device by asserting DTR
     def resetTargetDevice(self):
+        self.shellText.append('<Reset Target>\n')
+        self.mpBoard.serialOpen()
         data = self.mpBoard.hardReset()
         if data == b'':
             return
-        self.shellText.append('<Reset Target>\n')
         datastr = str(data, 'utf-8')
         self.shellText.append(datastr)
+        time.sleep(0.2)
+        self.viewTargetFiles()
 
     def viewTargetFiles(self):
         self.targetFileViewer.clear()
@@ -1295,11 +1310,15 @@ class pyEditor(QMainWindow):
         self.mpBoard.stopScript()
 
     def downloadScript(self):
+        hl_file = ''
+        if self.targetFileViewer.currentItem() != None:
+            hl_file = self.targetFileViewer.currentItem().text(0)
         dialog = QFileDialog(self)
         dialog.setWindowTitle('Download File to Target Device')
         dialog.setNameFilter('(*.py)')
-        dialog.setDirectory(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())   #+\
-                            # '/' + self.setx.getCurTargetScript())
+        dialog.setDirectory(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
+        if hl_file.endswith('.py'):
+            dialog.selectFile(hl_file)
         dialog.setFileMode(QFileDialog.ExistingFile)
         filename = None
         fname = ''
@@ -1494,7 +1513,7 @@ class pyEditor(QMainWindow):
         QApplication.restoreOverrideCursor()
 
     # Erase target memory prior to programming with (presumably) microPython
-    def eraseTargetMemory(self):
+    def eraseTargetFlash(self):
         ret = QMessageBox.question(self, "Erase Target Memory",
                                    "<h4><p>This action will ERASE target flash memory.</p>\n" \
                                    "<p>Do you want to CONTINUE erasure?</p></h4>",
@@ -1502,8 +1521,12 @@ class pyEditor(QMainWindow):
         if ret == QMessageBox.Yes:
             self.shellText.moveCursor(self.cursor.End)
             self.shellText.insertPlainText('Erasing Target Memory...\n')
-            # self.shellText.append('Erasing Target Memory...\n')
-            procCmdStr = 'esptool.py --port ' + self.setx.getSerialPort() + ' erase_flash'
+            self.shellText.append('Erasing Target Memory...\n')
+            procCmdStr = ''
+            if self.setx.getMCU() == 'ESP8266':
+                procCmdStr = 'esptool.py --port ' + self.setx.getSerialPort() + ' erase_flash'
+            elif self.setx.getMCU() == 'ESP32C3':
+                procCmdStr = 'esptool.py --chip esp32c3 --port ' + self.setx.getSerialPort() + ' erase_flash'
             self.mpBoard.serialClose()
             self.startProcess(procCmdStr)
         return
@@ -1529,9 +1552,13 @@ class pyEditor(QMainWindow):
 
         self.shellText.moveCursor(self.cursor.End)
         self.shellText.insertPlainText('Programming Target Memory...\n')
-        # self.shellText.append('Programming Target Memory...\n')
-        procCmdStr = 'esptool.py --port ' + self.setx.getSerialPort() +\
+        self.shellText.append('Programming Target Memory...\n')
+        if self.setx.getMCU() == 'ESP8266':
+            procCmdStr = 'esptool.py --port ' + self.setx.getSerialPort() +\
                      ' --baud 460800 write_flash --flash_size=detect 0 ' + self.pgmf_name
+        elif self.setx.getMCU() == 'ESP32C3':
+            procCmdStr = 'esptool.py --chip esp32c3 --port ' + self.setx.getSerialPort() + \
+                         ' --baud 460800 write_flash -z 0x0 ' + self.pgmf_name
         self.mpBoard.serialClose()
         self.startProcess(procCmdStr)
 
@@ -1840,7 +1867,7 @@ class pyEditor(QMainWindow):
     def addBookmark(self):
         linenumber = self.getLineNumber()
         linetext = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().block().text().strip()
-        self.bookmarks.addItem(linetext, linenumber)
+        self.bookmarks.addItem(str(linenumber) + ') ' + linetext, linenumber)
 
     def getLineNumber(self):
         mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(self.cursor.StartOfLine)
@@ -1865,14 +1892,18 @@ class pyEditor(QMainWindow):
                 return
 
     def gotoBookmark(self):
-        if mpconfig.editorList[mpconfig.currentTabIndex].find(self.bookmarks.itemText(self.bookmarks.currentIndex())):
-            pass
-        else:
-            mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.Start)
-            mpconfig.editorList[mpconfig.currentTabIndex].find(self.bookmarks.itemText(self.bookmarks.currentIndex()))
+        linenum = self.bookmarks.currentData()
+        ttext = mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()
+        bm_lines = ttext.splitlines()
+        cursor_offset = 0
+        # find absolute offset to target line number
+        for i in range(linenum):
+            cursor_offset += len(bm_lines[i])
 
-        mpconfig.editorList[mpconfig.currentTabIndex].centerCursor()
-        mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(self.cursor.StartOfLine, self.cursor.MoveAnchor)
+        mpconfig.editorList[mpconfig.currentTabIndex].centerCursor()    # force scroll if needed
+        cur_cursor = mpconfig.editorList[mpconfig.currentTabIndex].textCursor()
+        cur_cursor.setPosition(cursor_offset)
+        mpconfig.editorList[mpconfig.currentTabIndex].setTextCursor(cur_cursor)
 
     def gotoBookmarkFromMenu(self):
         if mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText() == "":
@@ -1898,9 +1929,10 @@ class pyEditor(QMainWindow):
     def findBookmarks(self):
         mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
         mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.Start)
-        if not mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() == "":
+        ot = mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()
+        if not ot:
             self.clearBookmarks()
-            newline = "\n"  # u"\2029"
+            newline = "\n"
             fr = "from"
             im = "import"
             d = "def"
@@ -1909,7 +1941,6 @@ class pyEditor(QMainWindow):
             sn = str("if __name__ ==")
             line = ""
             list = []
-            ot = mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()
             theList = ot.split(newline)
             linecount = ot.count(newline)
             for i in range(linecount + 1):
@@ -2029,7 +2060,6 @@ class pyEditor(QMainWindow):
                     mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(text.replace(tab, "    "))
                     self.setModified(False)
                 self.setCurrentFile(path, False)
-                self.findBookmarks()
                 self.statusBar().showMessage('File ' + path + ' loaded.')
                 mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
             else:
@@ -2459,7 +2489,9 @@ class pyEditor(QMainWindow):
             if not self.findfield.text() == "":
                 self.statusBar().showMessage("replacing all")
                 oldtext = mpconfig.editorList[mpconfig.currentTabIndex].document().toPlainText()
-                newtext = oldtext.replace(self.findfield.text(), self.replacefield.text(), 1)
+                hl_text = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText()
+                newtext = oldtext.replace(hl_text, self.replacefield.text(), 1)
+                # newtext = oldtext.replace(self.findfield.text(), self.replacefield.text(), 1)
                 mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(newtext)
                 self.setModified(True)
             else:
@@ -2562,7 +2594,6 @@ class pyEditor(QMainWindow):
                 except TypeError:  ### python 2
                     mpconfig.editorList[mpconfig.currentTabIndex].textCursor().insertText(str(text))
                 self.setModified(True)
-                self.findBookmarks()
                 self.statusBar().showMessage(
                     "'" + self.templates.itemText(self.templates.currentIndex()) + "' inserted")
                 inFile.close()

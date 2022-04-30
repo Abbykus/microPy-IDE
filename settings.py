@@ -1,5 +1,6 @@
 from PyQt5.QtCore import (QSettings, QFile, QFileInfo, QCoreApplication, Qt)
-from PyQt5.QtWidgets import (QWidget, QTabWidget, QVBoxLayout, QHBoxLayout, QPushButton)
+from PyQt5.QtWidgets import (QWidget, QTabWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame, QComboBox,
+                             QGridLayout)
 import sys
 import os
 
@@ -51,9 +52,33 @@ class Settings(QWidget):
 
         # General settings tab
         self.gen_tab = QWidget()
-        self.gen_tab.layout = QHBoxLayout()
-        # TODO - add settings widgets
-        self.gen_tab.setLayout(self.gen_tab.layout)
+        layout = QGridLayout()          #  QVBoxLayout()
+        layout.setColumnStretch(1, 1)
+        layout.setRowStretch(0, 0)
+        layout.setSpacing(2)
+        mcu_label = QLabel()
+        mcu_label.setAlignment(Qt.AlignCenter)
+        mcu_label.setStyleSheet("QLabel { background-color: #84aff4; color: #000000; border-style: outset; padding: 2px;"
+            "border-width: 2px; border-radius: 6px; border-color: #1a1a1a; }")
+        mcu_label.setText('Choose MCU Type')
+        mcu_label.setFrameShape(QFrame.StyledPanel)
+        mcu_label.setFixedWidth(200)
+        mcu_label.setFixedHeight(32)
+        layout.addWidget(mcu_label, 0, 0)
+        mcu_select = QComboBox()
+        #self.baudrates.setStyleSheet(stylesheet2(self))
+        mcu_select.setFixedWidth(200)
+        mcu_select.setToolTip("MCU Selection")
+        mcu_select.activated[str].connect(self.setMCU)
+        mcu_list = ["ESP8266", "ESP32", "ESP32C3", "ESP32S2", "ESP32S3"]
+        mcu_select.addItems(mcu_list)
+        target_mcu = self.settings.value('TARGET_MCU', '')
+        if target_mcu:
+            indx = mcu_select.findText(target_mcu)
+            mcu_select.setCurrentIndex(indx)
+        layout.addWidget(mcu_select, 1, 0)
+        layout.setAlignment(Qt.AlignTop)
+        self.gen_tab.setLayout(layout)
         self.tabsList.addTab(self.gen_tab, 'General')
 
         # Editor tab
@@ -77,10 +102,15 @@ class Settings(QWidget):
         self.setLayout(self.main_layout)
         self.resize(800, 600)
 
+    def setMCU(self, mcu):
+        self.settings.setValue('TARGET_MCU', mcu)
+
+    def getMCU(self):
+        return self.settings.value('TARGET_MCU', '')
+
     # settings window is closing
     def closeEvent(self, event):
         # TODO - save settings to
-        print('set win closing')
         return
 
     def openSettingsWindow(self):

@@ -178,23 +178,23 @@ class Pyboard:
         self.serialport.write(databytes)
 
     def hardReset(self):
-        if not self.serialport.isOpen():
-            return b''
-        self.ignoreSerial = True
-        self.serialport.flush()
-        self.serialport.setDataTerminalReady(False)
-        time.sleep(0.1)
-        self.serialport.setDataTerminalReady(True)
-        time.sleep(0.1)
-        data = self.read_until(1, b'MicroPython', 2)
-        if data.endswith(b'MicroPython'):
-            data1 = self.read_until(1, b'>>>', 2)
-            if data1.endswith(b'>>>'):
-                data += data1
-            begin = data.index(b'MicroPython')
-            data = data[begin:]
-        else:
-            data = b''
+        data = b''
+        if self.serialport.isOpen():
+            self.ignoreSerial = True
+            self.serialport.flush()
+            self.serialport.setDataTerminalReady(False)
+            time.sleep(0.1)
+            self.serialport.setDataTerminalReady(True)
+            time.sleep(0.1)
+            data = self.read_until(1, b'>>>', 2)
+            # if data.endswith(b'>>>'):
+            #     # data1 = self.read_until(1, b'>>>', 2)
+            #     # if data1.endswith(b'>>>'):
+            #     #     data += data1
+            #     # begin = data.index(b'MicroPython')
+            #     # data = data[begin:]
+            # else:
+            #     data = b''
 
         self.ignoreSerial = False
         return data
@@ -211,20 +211,22 @@ class Pyboard:
         return self.serialport.isOpen()
 
     def setSerialPortName(self, device):        # device is string name of system serial port
-        self.serialport.setPortName(device)     # serial port, example - 'COM1' or '/dev/ttyUSB0'
         self._device = device
+        self.serialport.setPortName(device)     # serial port, example - 'COM1' or '/dev/ttyUSB0'
 
     def setSerialPortBaudrate(self, baud):      # baud is a string
-        self.serialport.setBaudRate(int(baud))  # must convert baudrate str to int
         self._baudrate = baud
+        self.serialport.setBaudRate(int(baud))  # must convert baudrate str to int
 
     def serialClose(self):
         self.serialport.close()
 
     def serialOpen(self):
+        if self.serialport.isOpen():    # if it's open, close then reopen
+            self.serialport.close()
         self.setSerialPortName(self._device)
         self.setSerialPortBaudrate(self._baudrate)
-        self.serialport.open(QIODevice.ReadWrite)
+        return self.serialport.open(QIODevice.ReadWrite)    # return true on open success
 
     def serialReadyRead(self):
         if self.ignoreSerial:
@@ -273,24 +275,22 @@ class Pyboard:
         print('serial ignore')
         # self.serialport.waitForReadyRead(50)
 
-    # Read serialport until ending pattern is found or timeout
+    # Read serialport until ending pattern is found or until timeout
     # If ending is None, any pattern is matched
     def read_until(self, min_num_bytes, ending, timeout=1):
         data = b''
+        pattern_fnd = False
         if self.serialport.isOpen():
-            outahere = False
-            timeout_count = timeout * 100
+            start_timeout = time.time()
             while True:
+                if time.time() - start_timeout > timeout or pattern_fnd:
+                    break
                 if self.serialport.waitForReadyRead(10):
                     while self.serialport.bytesAvailable() > 0:
                         data += self.serialport.read(min_num_bytes)
-                        if data.endswith(ending):
-                            outahere = True
+                        if data.endswith(ending) or time.time() - start_timeout > timeout:
+                            pattern_fnd = True
                             break
-                else:
-                    timeout_count -= 1
-                if outahere or timeout_count <= 0:
-                    break
         return data
 
     # Enter the microPython raw REPL mode to run a script on the target
@@ -311,7 +311,7 @@ class Pyboard:
 
         for retry in range(0, 1):
             self.serialport.write(b'\r\x01')    # ctrl-A: enter raw REPL
-            time.sleep(0.2)
+            time.sleep(0.1)
             data = self.read_until(1, b'raw REPL; CTRL-B to exit\r\n>', 1)
             if data.endswith(b'raw REPL; CTRL-B to exit\r\n>'):
                 break
