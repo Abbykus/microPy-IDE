@@ -67,11 +67,6 @@ class PyTextEdit(QPlainTextEdit):
         self.setCompleter(self.completer)
 
         self.ctrl_f = QShortcut(QKeySequence('Ctrl+F'), self)
-    #     self.ctrl_f.activated.connect(self.ctrlF)
-    #
-    # def ctrlF(self):
-    #     print('ctrl-f')
-    #     self.findfield.setFocus(True)
 
     def setCompleter(self, c):
         if self._completer is not None:
@@ -523,6 +518,18 @@ class pyEditor(QMainWindow):
         tbf.setIconSize(QSize(iconsize))
         tbf.setMovable(False)
         tbf.setFloatable(False)
+
+        tbf.addSeparator()
+        self.findPrevAct = QPushButton("Prev")
+        self.findPrevAct.setToolTip('Find Previous Text')
+        self.findPrevAct.setFixedWidth(50)
+        self.findPrevAct.setStyleSheet(stylesheet2(self))
+        self.findPrevAct.setIconSize(QSize(24, 24))
+        self.findPrevAct.setLayoutDirection(Qt.RightToLeft)
+        self.findPrevAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/previous"))
+        self.findPrevAct.clicked.connect(self.findTextPrev)
+        tbf.addWidget(self.findPrevAct)
+
         self.findfield = QLineEdit()
         self.findfield.setStyleSheet(stylesheet2(self))
         self.findfield.addAction(QIcon.fromTheme("edit-find"), QLineEdit.LeadingPosition)
@@ -531,25 +538,37 @@ class pyEditor(QMainWindow):
         self.findfield.setPlaceholderText("find")
         self.findfield.setToolTip("press RETURN to find")
         self.findfield.setText("")
-        ft = self.findfield.text()
+        # ft = self.findfield.text()
+        self.findfield.textChanged.connect(self.findTextChanged)
         self.findfield.returnPressed.connect(self.findText)
         tbf.addWidget(self.findfield)
+
+        self.findNextAct = QPushButton("Next")
+        self.findNextAct.setToolTip('Find Next Text')
+        self.findNextAct.setFixedWidth(50)
+        self.findNextAct.setStyleSheet(stylesheet2(self))
+        self.findNextAct.setIconSize(QSize(24, 24))
+        self.findNextAct.setIcon(QIcon.fromTheme(self.setx.getAppPath() + "/icons/next"))
+        self.findNextAct.clicked.connect(self.findTextNext)
+        tbf.addWidget(self.findNextAct)
+        tbf.addSeparator()
+
         self.replacefield = QLineEdit()
         self.replacefield.setStyleSheet(stylesheet2(self))
         self.replacefield.addAction(QIcon.fromTheme("edit-find-and-replace"), QLineEdit.LeadingPosition)
         self.replacefield.setClearButtonEnabled(False)
         self.replacefield.setFixedWidth(150)
         self.replacefield.setPlaceholderText("replace with")
-        self.replacefield.setToolTip("press RETURN to replace the first")
+        self.replacefield.setToolTip("Press RETURN to replace current match")
         self.replacefield.returnPressed.connect(self.replaceOne)
         tbf.addSeparator()
         tbf.addWidget(self.replacefield)
         tbf.addSeparator()
 
-        self.repAllAct = QPushButton("Replace All")
+        self.repAllAct = QPushButton("Replace ALL")
+        self.repAllAct.setToolTip('Replace All Occurances')
         self.repAllAct.setFixedWidth(80)
         self.repAllAct.setStyleSheet(stylesheet2(self))
-        self.repAllAct.setIcon(QIcon.fromTheme("gtk-find-and-replace"))
         self.repAllAct.clicked.connect(self.replaceAll)
         tbf.addWidget(self.repAllAct)
         tbf.addSeparator()
@@ -566,9 +585,9 @@ class pyEditor(QMainWindow):
         tbf.addSeparator()
         self.gotofield = QLineEdit()
         self.gotofield.setStyleSheet(stylesheet2(self))
-        self.gotofield.addAction(QIcon.fromTheme("next"), QLineEdit.LeadingPosition)
+        # self.gotofield.addAction(QIcon.fromTheme("next"), QLineEdit.LeadingPosition)
         self.gotofield.setClearButtonEnabled(True)
-        self.gotofield.setFixedWidth(120)
+        self.gotofield.setFixedWidth(70)
         self.gotofield.setPlaceholderText("go to line")
         self.gotofield.setToolTip("press RETURN to go to line")
         self.gotofield.returnPressed.connect(self.gotoLine)
@@ -1180,9 +1199,12 @@ class pyEditor(QMainWindow):
 
     # Ctrl-F pressed in plain text editor - focus on find field
     def ctrl_F(self):
+        stext = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText()
+        if stext:
+            self.findfield.setText(stext)
         self.findfield.setFocus(True)
 
-    # text in the editor of the current selected tab has changed
+    # text in the current editor has changed
     def onTextHasChanged(self):
         mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = True
         tabtxt = self.tabsList.tabText(self.tabsList.currentIndex())
@@ -1406,8 +1428,9 @@ class pyEditor(QMainWindow):
         data = self.mpCmds.get(filename)
         data = str(data, 'utf-8')  # convert bytes to string
         mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(data.replace(tab, "    "))
-        mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = False
-        # self.setModified(False)
+        # uploaded file shown as modified.
+        mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = True
+        filename += '*'
         self.tabsList.tabBar().setTabText(self.tabsList.currentIndex(), filename)  # update editor tab text
         QApplication.restoreOverrideCursor()
 
@@ -2075,13 +2098,21 @@ class pyEditor(QMainWindow):
 
     ### Save file
     def fileSave(self):
-        # filename is kept on tab text
-        fn = self.tabsList.tabBar().tabText(self.tabsList.currentIndex())   # filename of current editor tab
+        # filename is kept in tab text
+        fn = self.tabsList.tabBar().tabText(self.tabsList.currentIndex())   # filename on current editor tab
         if not fn.endswith('*'):    # exit if text is unchanged
             return
 
-        fn = fn.replace('*', '')
-        fpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName() + '/' + fn
+        fpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
+        if self.findFileDup(fn, fpath):
+            reply = QMessageBox.question(self, 'Duplicate File Found!', 'Do you want to OVERWRITE the existing file?',
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
+
+        if fn.endswith('*'):
+            fn = fn.replace('*', '')
+        fpath += '/' + fn
         if fn and fn != 'untitled':
             file = QFile(fpath)
             if not file.open(QFile.WriteOnly | QFile.Text):
@@ -2110,7 +2141,6 @@ class pyEditor(QMainWindow):
         fn, _ = QFileDialog.getSaveFileName(self, "Save as...", fpath + '/' + fname,
                                             "Python files (*.py)")
         if not fn:
-            # print("Error saving file")
             return False
 
         lfn = fn.lower()
@@ -2126,6 +2156,20 @@ class pyEditor(QMainWindow):
         self.tabsList.setTabText(self.tabsList.currentIndex(), fn)
         self.fileSave()
         self.viewProjectFiles(fpath)
+
+
+    def findFileDup(self, dfile, path=''):
+        ret = ''
+        fileslist = []
+        if dfile:
+            if dfile.endswith('*'):
+                dfile = dfile.replace('*', '')
+            # if path is null, use current directory
+            for file in os.listdir(path):
+                if dfile.lower() == file.lower():
+                    ret = file
+                    break
+        return ret      # return dup filename -or- null string if no duplicates
 
     def deleteFile(self):
         tcount = self.tabsList.count()
@@ -2323,19 +2367,46 @@ class pyEditor(QMainWindow):
         mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(int(self.gofield.currentText()),
                                QTextCursor.MoveAnchor)  ### not working
 
-    def findText(self):
+    def findText(self, backward=False):
+        # search from the current cursor position
         word = self.findfield.text()
-        if mpconfig.editorList[mpconfig.currentTabIndex].find(word):
-            linenumber = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().blockNumber() + 1
-            self.statusBar().showMessage("found <b>'" + self.findfield.text() + "'</b> at Line: " + str(linenumber))
-            mpconfig.editorList[mpconfig.currentTabIndex].centerCursor()
+        if backward:
+            n = mpconfig.editorList[mpconfig.currentTabIndex].find(word, QTextDocument.FindBackward)
         else:
-            self.statusBar().showMessage("<b>'" + self.findfield.text() + "'</b> not found")
-            mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.Start)
-            if mpconfig.editorList[mpconfig.currentTabIndex].find(word):
-                linenumber = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().blockNumber() + 1
-                self.statusBar().showMessage("found <b>'" + self.findfield.text() + "'</b> at Line: " + str(linenumber))
-                mpconfig.editorList[mpconfig.currentTabIndex].centerCursor()
+            n = mpconfig.editorList[mpconfig.currentTabIndex].find(word)
+        if n:
+            mpconfig.editorList[mpconfig.currentTabIndex].centerCursor()    # force scroll if needed
+        else:
+            # Search term not found from the current cursor position
+            # If reverse search, try searching backwards from the end of the text
+            if backward:
+                mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.End)
+                if mpconfig.editorList[mpconfig.currentTabIndex].find(word, QTextDocument.FindBackward):
+                    n = True
+                    mpconfig.editorList[mpconfig.currentTabIndex].centerCursor()
+            # Else try searching forward from the start of the text
+            else:
+                mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.Start)
+                if mpconfig.editorList[mpconfig.currentTabIndex].find(word):
+                    n = True
+                    mpconfig.editorList[mpconfig.currentTabIndex].centerCursor()
+        return n    # True if search term found, False otherwise
+
+    def findTextChanged(self):
+        cursor = mpconfig.editorList[mpconfig.currentTabIndex].textCursor()
+        cursor.movePosition(QTextCursor.Start, QTextCursor.MoveAnchor)
+        mpconfig.editorList[mpconfig.currentTabIndex].setTextCursor(cursor)
+        self.findText()
+
+
+    def findTextNext(self):
+        cursor = mpconfig.editorList[mpconfig.currentTabIndex].textCursor()
+        cursor.movePosition(QTextCursor.NextCharacter, QTextCursor.MoveAnchor)
+        mpconfig.editorList[mpconfig.currentTabIndex].setTextCursor(cursor)
+        return self.findText(False)
+
+    def findTextPrev(self):
+        return self.findText(True)     # search for text backwards
 
     def findBookmark(self, word):
         if mpconfig.editorList[mpconfig.currentTabIndex].find(word):
@@ -2474,10 +2545,18 @@ class pyEditor(QMainWindow):
     def replaceAll(self):
         if not mpconfig.editorList[mpconfig.currentTabIndex].document().toPlainText() == "":
             if not self.findfield.text() == "":
-                self.statusBar().showMessage("replacing all")
-                oldtext = mpconfig.editorList[mpconfig.currentTabIndex].document().toPlainText()
-                newtext = oldtext.replace(self.findfield.text(), self.replacefield.text())
-                mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(newtext)
+                self.statusBar().showMessage("Replacing all")
+                # Position cursor at the beginning of text
+                cursor = mpconfig.editorList[mpconfig.currentTabIndex].textCursor()
+                cursor.movePosition(QTextCursor.Start, QTextCursor.MoveAnchor)
+                mpconfig.editorList[mpconfig.currentTabIndex].setTextCursor(cursor)
+                self.findText()
+                while self.replaceOne():
+                    pass
+
+                # oldtext = mpconfig.editorList[mpconfig.currentTabIndex].document().toPlainText()
+                # newtext = oldtext.replace(self.findfield.text(), self.replacefield.text())
+                # mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(newtext)
                 self.setModified(True)
             else:
                 self.statusBar().showMessage("nothing to replace")
@@ -2485,19 +2564,23 @@ class pyEditor(QMainWindow):
             self.statusBar().showMessage("no text")
 
     def replaceOne(self):
+        # Check if search params are valid
         if not mpconfig.editorList[mpconfig.currentTabIndex].document().toPlainText() == "":
             if not self.findfield.text() == "":
-                self.statusBar().showMessage("replacing all")
-                oldtext = mpconfig.editorList[mpconfig.currentTabIndex].document().toPlainText()
-                hl_text = mpconfig.editorList[mpconfig.currentTabIndex].textCursor().selectedText()
-                newtext = oldtext.replace(hl_text, self.replacefield.text(), 1)
-                # newtext = oldtext.replace(self.findfield.text(), self.replacefield.text(), 1)
-                mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(newtext)
+                self.statusBar().showMessage("Replacing Text")
+                # use cut & paste so the 'undo' history persists
+                clipboard = QApplication.clipboard()
+                mpconfig.editorList[mpconfig.currentTabIndex].cut()
+                clipboard.setText(self.replacefield.text())
+                mpconfig.editorList[mpconfig.currentTabIndex].paste()
                 self.setModified(True)
+                return self.findTextNext()
             else:
-                self.statusBar().showMessage("nothing to replace")
+                self.statusBar().showMessage("No text to replace.")
         else:
-            self.statusBar().showMessage("no text")
+            self.statusBar().showMessage("No text in Editor")
+
+        return False
 
     def setCurrentFile(self, fileName, modified):
         # self.filename = fileName
@@ -2683,6 +2766,8 @@ def stylesheet2(self):
     {
     font-family: Helvetica;
     font-size: 8pt;
+    border: 1px solid #84aff4;
+    border-radius: 4px;
     }
     QPushButton
     {
@@ -2693,6 +2778,8 @@ def stylesheet2(self):
     {
     font-family: Helvetica;
     font-size: 8pt;
+    border: 1px solid #84aff4;
+    border-radius: 4px;
     }
     QMenuBar
     {

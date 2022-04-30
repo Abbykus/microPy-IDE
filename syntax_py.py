@@ -29,13 +29,11 @@ STYLES = {
     'brace': format('#d88b68'),
     'defclass': format('#FC9C16', 'bold'),
     'classes': format('#FC9C16', 'bold'),
-    'Qtclass': format('#FC9C16', 'bold'),
     'string': format('#77C96E'),
     'string2': format('#77C96E', 'italic'),
     'comment': format('#679FD3', 'italic'),
     'self': format('#D63030'),
     'selfnext': format('#D1D1D1'),
-    'Qnext': format('#A657BA', 'bold'),
     'numbers': format('#6D97F9'),
     'boolean': format('#f2f268')
 }
@@ -51,7 +49,7 @@ class Highlighter(QSyntaxHighlighter):
         'for', 'from', 'global', 'if', 'import', 'in',
         'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'print',
         'raise', 'return', 'super', 'try', 'while', 'with', 'yield',
-        'None']  #, 'True', 'False']
+        'None']
 
     # Python operators
     operators = [
@@ -117,17 +115,11 @@ class Highlighter(QSyntaxHighlighter):
             # 'self.' followed by a word
             (r'\bself.\b\s*(\w+)', 1, STYLES['selfnext']),
 
-            # 'Q' followed by a word
-            (r'\bQ.\b\s*(\w+)', 1, STYLES['Qnext']),
-
             # 'class' followed by an identifier
             (r'\bclass\b\s*(\w+)', 1, STYLES['classes']),
 
-            # From '#' until a newline
+            # 'line comment' from '#' until a newline
             (r'#[^\n]*', 0, STYLES['comment']),
-
-            # 'Q'  word
-            #(r'\\bQ[A-Za-z]+\\b', 1, STYLES['Qtclass']), #(QRegExp("\\bQ[A-Za-z]+\\b")
         ]
 
         # Build a QRegExp for each pattern
