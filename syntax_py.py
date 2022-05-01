@@ -4,6 +4,7 @@ import sys
 from PyQt5.QtCore import QRegExp, QRegularExpression
 from PyQt5.QtGui import QColor, QTextCharFormat, QFont, QSyntaxHighlighter
 
+
 def format(color, style=''):
     '''Return a QTextCharFormat with the given attributes.
     '''
@@ -21,7 +22,6 @@ def format(color, style=''):
         _format.setFontWeight(QFont.Bold)
     return _format
 
-#mybrawn = ("#7E5916")
 # Syntax styles that can be shared by all languages
 STYLES = {
     'keyword': format('#d88b68'),

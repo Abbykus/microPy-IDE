@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (QPlainTextEdit, QWidget, QVBoxLayout, QApplication,
                              QSystemTrayIcon, QSplitter, QTreeWidget, QTreeWidgetItem, QTabWidget, QDialogButtonBox,
                              QScrollBar, QSpacerItem, QSizePolicy, QLayout, QStyle, QFrame, QHeaderView, QShortcut)
 from PyQt5.QtGui import (QIcon, QPainter, QTextFormat, QColor, QTextCursor, QKeySequence, QClipboard, QTextDocument,
-                         QPixmap, QStandardItemModel, QStandardItem, QCursor, QPalette)
+                         QPixmap, QStandardItemModel, QStandardItem, QCursor, QPalette, QFont)
 from PyQt5.QtCore import (Qt, QVariant, QRect, QDir, QFile, QFileInfo, QTextStream, QSettings, QTranslator, QLocale,
                           QProcess, QPoint, QSize, QCoreApplication, QStringListModel, QLibraryInfo, QIODevice, QEvent,
                           pyqtSlot, QModelIndex, QThread)
@@ -21,7 +21,8 @@ from PyQt5.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
 from sys import argv
 import inspect
 
-from syntax_py import *
+# from syntax_py import *
+import syntax_py
 import os
 import sys
 import re
@@ -34,11 +35,23 @@ import pyboard
 import files
 import asyncio
 
+'''
+COMMON COLOR VALUES 
+
+Python (apparently) has no way of changing stylesheet colors at run time. Python also has no
+text substitution feature (like #define in C/C++). So it is necessary to keep track of common
+color values here.
+
+POWDER BLUE:    #84aff4     Borders, etc.
+DARK GREY:      #2b2b2b
+MEDIUM GREY:    #484848
+LIGHT GREY:     #a0a0a0
+'''
 
 # GLOBAL CONSTANTS
-lineBarColor = QColor("#84aff4")
-lineHighlightColor = QColor("#232323")
-border_outer_color = QColor("#ef4343")
+num_bar_bgcolor = QColor("#84aff4")
+textline_highlight_color = QColor("#303030")  #QColor("#232323")        # shade of black
+
 tab = chr(9)
 tab_indent = 4
 eof = "\n"
@@ -194,13 +207,14 @@ class NumberBar(QWidget):
 
     def paintEvent(self, event):
         if self.isVisible():
+            print('line 209, ix=', mpconfig.currentTabIndex)
             editor = mpconfig.editorList[mpconfig.currentTabIndex]
             num_bar = mpconfig.numberbarList[mpconfig.currentTabIndex]
             block = editor.firstVisibleBlock()
             height = num_bar.fontMetrics().height()
             number = block.blockNumber()
             painter = QPainter(num_bar)
-            painter.fillRect(event.rect(), lineBarColor)
+            painter.fillRect(event.rect(), num_bar_bgcolor)
             painter.drawRect(0, 0, event.rect().width() - 1, event.rect().height() - 1)
             font = painter.font()
             current_block = editor.textCursor().block().blockNumber() + 1
@@ -209,7 +223,6 @@ class NumberBar(QWidget):
                 offset = editor.contentOffset()
                 block_top = block_geometry.translated(offset).top()
                 number += 1
-
                 rect = QRect(0, int(block_top) + 2, num_bar.width() - 5, height)
                 # highlight current line number
                 if number == current_block:
@@ -798,16 +811,15 @@ class pyEditor(QMainWindow):
         self.top_right_layout = QHBoxLayout()
         self.top_right_layout.setSpacing(2)
         self.create_new_tab('untitled')         # make first empty tab
-        #self.create_new_tab('tab2')
         self.top_right_layout.addWidget(self.tabsList, 1)
-        self.top_right_layout.setContentsMargins(0, 0, 0, 0) #6, 6, 6, 6)
+        self.top_right_layout.setContentsMargins(0, 0, 0, 0)
         self.top_right_widget = QWidget()
         self.setCentralWidget(self.tabsList)
         self.top_right_widget.setLayout(self.top_right_layout)
-        self.top_right_widget.setStyleSheet("background-color: rgb(43, 43, 43);\n"
-                                            "color: rgb(160, 160, 160);\n"
+        self.top_right_widget.setStyleSheet("background-color: #2b2b2b;\n"
+                                            "color: #a0a0a0;\n"
                                             "border-style: solid;\n"
-                                            "border-color: rgb(132, 175, 244);\n" 
+                                            "border-color: #84aff4;\n" 
                                             "border-width: 0px;\n"
                                             "border-radius: 4px;")
 
@@ -817,10 +829,10 @@ class pyEditor(QMainWindow):
         self.bot_right_layout.addWidget(self.shellText)
         self.bot_right_widget = QWidget()
         self.bot_right_widget.setLayout(self.bot_right_layout)
-        self.bot_right_widget.setStyleSheet("background-color: rgb(43, 43, 43);\n"
-                                            "color: rgb(160, 160, 160);\n"  
+        self.bot_right_widget.setStyleSheet("background-color: #2b2b2b;\n"
+                                            "color: #a0a0a0;\n"  
                                             "border-style: solid;\n"
-                                            "border-color: rgb(132, 175, 244);;\n"  
+                                            "border-color: #84aff4;\n"  
                                             "border-width: 2px;\n"
                                             "border-radius: 4px;")
 
@@ -1133,10 +1145,10 @@ class pyEditor(QMainWindow):
         text_editor = PyTextEdit()
         new_cursor = QTextCursor(text_editor.document())
         text_editor.setTextCursor(new_cursor)
-        text_editor.setStyleSheet("background-color: rgb(0, 0, 0);\n"
-                                  "color: rgb(160, 160, 160);\n"
+        text_editor.setStyleSheet("background-color: #000000;\n"
+                                  "color: #a0a0a0;\n"
                                   "border-style: solid;\n"
-                                  "border-color: rgb(132, 175, 244);\n"
+                                  "border-color: #84aff4;\n"
                                   "border-width: 0px;\n"
                                   "border-radius: 4px;")
         text_editor.setTabStopWidth(12)
@@ -1151,45 +1163,39 @@ class pyEditor(QMainWindow):
         horiz_sbar = QScrollBar()
         horiz_sbar.setOrientation(Qt.Horizontal)
         horiz_sbar.setStyleSheet("""
-                         QScrollBar:horizontal { background-color: rgb(132, 175, 244) } """)
+                         QScrollBar:horizontal { background-color: #84aff4 } """)
         text_editor.setHorizontalScrollBar(horiz_sbar)
 
         vert_sbar = QScrollBar()
         vert_sbar.setOrientation(Qt.Vertical)
         vert_sbar.setStyleSheet("""
-                         QScrollBar:vertical { background-color: rgb(132, 175, 244) } """)
+                         QScrollBar:vertical { background-color: #84aff4 } """)
         text_editor.setVerticalScrollBar(vert_sbar)
-
-        # text_editor.setPlainText(self.mainText)
         text_editor.moveCursor(new_cursor.Start)
-        # mpconfig.editorList.append(text_editor)
-        highlighter = Highlighter(text_editor.document())
+        highlighter = syntax_py.Highlighter(text_editor.document())
         mpconfig.highlighterList.append(highlighter)
         mpconfig.editorList.append(text_editor)
 
-        mpconfig.currentTabIndex += 1       # update
+        mpconfig.currentTabIndex = self.tabsList.count()  # index = end of list
         num_bar = NumberBar()
-        num_bar.setStyleSheet("background-color: rgb(0, 0, 0);\n"  #43, 43, 43);\n"
-                                       "color: rgb(160, 160, 160);\n"
-                                       "border-style: solid;\n"
-                                       "border-color: rgb(132, 175, 244);\n"
-                                       "border-width: 0px;\n"
-                                       "border-radius: 4px;")
+        num_bar.setStyleSheet("background-color: #000000;\n" 
+                              "color: #a0a0a0;\n"
+                              "border-style: solid;\n"
+                              "border-color: #84aff4;\n"
+                              "border-width: 0px;\n"
+                              "border-radius: 4px;")
         num_bar.setObjectName('num_bar')
         mpconfig.numberbarList.append(num_bar)
         new_tab.layout.addWidget(num_bar)
         new_tab.layout.addWidget(text_editor)
         new_tab.setLayout(new_tab.layout)
         # set style properties for the new tab
-        new_tab.setStyleSheet("background-color: rgb(72, 72, 72);\n"  #"(43, 43, 43);\n"
-                              "color: rgb(160, 160, 160);\n"
+        new_tab.setStyleSheet("background-color: #484848;\n"    # medium grey
+                              "color: #a0a0a0;\n"               # light grey
                               "border-style: solid;\n"
                               "border-width: 0px;\n"
                               "border-radius: 4px;")
         ttip = tab_title
-        # if len(tab_title) > 11:
-        #     tab_title = tab_title[:8] + "..."
-
         self.tabsList.addTab(new_tab, tab_title)
         self.tabsList.tabBar().setTabToolTip(self.tabsList.currentIndex(), ttip)
         if self.tabsList.count() > 0:
@@ -1254,6 +1260,7 @@ class pyEditor(QMainWindow):
         # ignore dbl click on serial port name
         if titem != self.setx.getSerialPort():
             self.uploadScript(titem)
+
 
 
     # Reset ESP32 target device by asserting DTR
@@ -2069,6 +2076,7 @@ class pyEditor(QMainWindow):
             inFile = QFile(path)
             if inFile.open(QFile.ReadWrite | QFile.Text):
                 text = inFile.readAll()         # get bytes from file
+                inFile.close()
                 text = str(text, encoding='utf8')   # convert bytes to string
                 fn = os.path.basename(path)
                 dup_fname = self.searchTabNames(fn, True)
@@ -2079,6 +2087,7 @@ class pyEditor(QMainWindow):
                 elif dup_fname == -1 and self.tabsList.tabText(self.tabsList.currentIndex()) == 'untitled' \
                         and mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() != '':
                     self.create_new_tab(path)
+
                 if mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() == '':
                     mpconfig.editorList[mpconfig.currentTabIndex].setPlainText(text.replace(tab, "    "))
                     self.setModified(False)
@@ -2156,7 +2165,6 @@ class pyEditor(QMainWindow):
         self.tabsList.setTabText(self.tabsList.currentIndex(), fn)
         self.fileSave()
         self.viewProjectFiles(fpath)
-
 
     def findFileDup(self, dfile, path=''):
         ret = ''
@@ -2511,7 +2519,7 @@ class pyEditor(QMainWindow):
     def paintEvent(self, event):
         if self.tabsList.count() > 0:
             highlighted_line = QTextEdit.ExtraSelection()
-            highlighted_line.format.setBackground(lineHighlightColor)
+            highlighted_line.format.setBackground(textline_highlight_color)
             highlighted_line.format.setProperty(QTextFormat
                                                 .FullWidthSelection,
                                                 QVariant(True))
