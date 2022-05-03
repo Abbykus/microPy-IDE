@@ -207,7 +207,6 @@ class NumberBar(QWidget):
 
     def paintEvent(self, event):
         if self.isVisible():
-            print('line 209, ix=', mpconfig.currentTabIndex)
             editor = mpconfig.editorList[mpconfig.currentTabIndex]
             num_bar = mpconfig.numberbarList[mpconfig.currentTabIndex]
             block = editor.firstVisibleBlock()
@@ -781,7 +780,7 @@ class pyEditor(QMainWindow):
         mptb.addWidget(Vseparator())
         mptb.addSeparator()
         mptb.addSeparator()
-        mptb.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/terminal"), "Clear Shell Terminal", self.clearLabel)
+        mptb.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/terminal"), "Clear Shell Terminal", self.clearShellTerminal)
 
         ### Erase & program firmware buttons
         mptb.addSeparator()
@@ -1261,29 +1260,37 @@ class pyEditor(QMainWindow):
         if titem != self.setx.getSerialPort():
             self.uploadScript(titem)
 
-
-
     # Reset ESP32 target device by asserting DTR
     def resetTargetDevice(self):
-        self.shellText.append('<Reset Target>\n')
+        self.shellTextAppend('\n<Reset Target>\n', False)
         self.mpBoard.serialOpen()
         data = self.mpBoard.hardReset()
         if data == b'':
             return
         datastr = str(data, 'utf-8')
-        self.shellText.append(datastr)
-        time.sleep(0.2)
+        self.shellTextAppend(datastr, True)     # show target response after reset
+        time.sleep(0.1)
+        self.shellTextAppend('\n<Display Target Files>\n', True)  # show target response after reset
         self.viewTargetFiles()
+
+    def shellTextAppend(self, text='', focus=False):
+        self.shellText.moveCursor(self.cursor.End)
+        self.shellText.insertPlainText(text)
+        self.shellText.moveCursor(self.cursor.End)
+        if focus:
+            self.shellText.setFocus()
+
 
     def viewTargetFiles(self):
         self.targetFileViewer.clear()
         self.TargetFileList.clear()
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.TargetFileList = self.mpCmds.ls('/', True, False)
-        if self.TargetFileList[0].startswith('Failed'):
-            self.shellText.insertPlainText('\nFailed to upload target files!\n')
-            QApplication.restoreOverrideCursor()
-            return
+        if self.TargetFileList:
+            if self.TargetFileList[0].startswith('Failed'):
+                self.shellTextAppend('\nFailed to upload target files!\n', False)
+                QApplication.restoreOverrideCursor()
+                return
 
         targ1 = QTreeWidgetItem([self.setx.getSerialPort()])
         targ1.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/connect"))
@@ -1291,12 +1298,19 @@ class pyEditor(QMainWindow):
         for i in range(len(self.TargetFileList)):
             if self.TargetFileList[i] == '':        # exit if bogus file
                 break
-            # remove leading slash from file name (names with a dot)
-            if self.TargetFileList[i].startswith('/', 0, 1) and self.TargetFileList[i].find('.') != -1:
-                self.TargetFileList[i] = self.TargetFileList[i].replace('/', '', 1)
-            fn = self.TargetFileList[i].split(';')
-            targ1_child = QTreeWidgetItem([fn[0], fn[1]])
-            targ1_child.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/file"))
+
+            fn = self.TargetFileList[i].split(';', 1)   # split filename & file size
+            # if the target name starts with '/' it's assumed to be a folder
+            if fn[0].startswith('/', 0, 1) and fn[0].find('.') == -1:
+                targ1_child = QTreeWidgetItem([fn[0], ''])
+                targ1_child.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/folder"))
+            else:
+                fn[0] = fn[0].replace('/', '', 1)
+                if len(fn) > 1:
+                    targ1_child = QTreeWidgetItem([fn[0], fn[1]])
+                else:
+                    targ1_child = QTreeWidgetItem([fn[0], ''])
+                targ1_child.setIcon(0, QIcon(self.setx.getAppPath() + "/icons/file"))
             targ1.addChild(targ1_child)
 
         self.targetFileViewer.addTopLevelItem(targ1)
@@ -1328,14 +1342,14 @@ class pyEditor(QMainWindow):
 
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.setx.setCurTargetScript(fname)
-        self.shellText.append('\nStarting script: ' + fname + '\n')
-        self.shellText.moveCursor(self.cursor.End)
+
+        self.shellTextAppend('\nStarting script: ' + fname + '\n', False)
         self.mpCmds.run(fname, False, False)
         QApplication.restoreOverrideCursor()
 
 
     def stopTargetScript(self):
-        self.shellText.append("Stopping current script " + self.setx.getCurTargetScript() + "\n")
+        self.shellTextAppend("Stopping current script " + self.setx.getCurTargetScript() + "\n", False)
         self.mpBoard.stopScript()
 
     def downloadScript(self):
@@ -1363,6 +1377,11 @@ class pyEditor(QMainWindow):
         QApplication.restoreOverrideCursor()
 
     def uploadScript(self, filename):
+        if not self.TargetFileList:
+            QMessageBox.warning(self, 'Upload Target File', 'Target File Directory is Empty.',
+                                         QMessageBox.Ok, QMessageBox.Ok)
+            return
+        self.shellTextAppend("\n<Upload Target File>\n", False)
         if not filename:
             vLayout = QVBoxLayout()
             self.upldDialog = QDialog()
@@ -1381,6 +1400,8 @@ class pyEditor(QMainWindow):
             items = []
             for i in range(len(self.TargetFileList)):
                 l1 = QTreeWidgetItem([self.TargetFileList[i]])
+                tmp = l1.text(0).split(';')     # remove the file size string from filename
+                l1.setText(0, tmp[0])
                 items.append(l1)
 
             self.upldTree.addTopLevelItems(items)
@@ -1465,7 +1486,7 @@ class pyEditor(QMainWindow):
                 break
         return fnd
 
-    # remove (delete) target script file
+    # remove (delete) script file in target file system
     def removeScript(self):
         # Create a dialog to select the target file to be removed
         vLayout = QVBoxLayout()
@@ -1484,6 +1505,8 @@ class pyEditor(QMainWindow):
         items = []
         for i in range(len(self.TargetFileList)):
             l1 = QTreeWidgetItem([self.TargetFileList[i]])
+            tmp = l1.text(0).split(';')  # remove the file size string from filename
+            l1.setText(0, tmp[0])
             items.append(l1)
 
         self.rmTree.addTopLevelItems(items)
@@ -1496,14 +1519,14 @@ class pyEditor(QMainWindow):
         hLayout = QHBoxLayout()
         hLayout.addStretch()
         btn_ok = QPushButton("OK")
-        btn_ok.clicked.connect(self.rmDialogAccept)
+        btn_ok.clicked.connect(self.rm_dialog_accept)
         btn_ok.setToolTip('Accept File')
         btn_ok.setMaximumWidth(100)
         hLayout.addWidget(btn_ok, 1, Qt.AlignHCenter);
-        self.rmTree.itemDoubleClicked.connect(self.rmDialogAccept)
+        self.rmTree.itemDoubleClicked.connect(self.rm_dialog_accept)
         hLayout.addWidget(btn_ok)
         btn_cancel = QPushButton("Cancel")
-        btn_cancel.clicked.connect(self.rmDialogCancel)
+        btn_cancel.clicked.connect(self.rm_dialog_cancel)
         btn_cancel.setToolTip('Cancel')
         btn_cancel.setMaximumWidth(100)
         btn_cancel.setContentsMargins(0, 0, 0, 0)
@@ -1522,25 +1545,90 @@ class pyEditor(QMainWindow):
             self.viewTargetFiles()
             QApplication.restoreOverrideCursor()
 
-    def rmDialogCancel(self):
+    def rm_dialog_cancel(self):
         self.rmScriptDialog.reject()  #  .setResult(0)
         self.rmScriptDialog.close()
 
-    def rmDialogAccept(self):
+    def rm_dialog_accept(self):
         self.rmScriptDialog.accept()
         self.rmScriptDialog.close()
 
     def newTargetFolder(self):
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        self.mpCmds.mkdir('testdir')
-        self.viewTargetFiles()
-        QApplication.restoreOverrideCursor()
+        self.newdir = ''
+        self.ntarg_dialog = QDialog()
+        self.ntarg_dialog.setWindowTitle('Create New Target Folder')
+        QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        buttonBox = QDialogButtonBox(QBtn)
+        buttonBox.accepted.connect(self.ntarg_accept)
+        buttonBox.rejected.connect(self.ntarg_reject)
+
+        self.ntarg_dialog.layout = QVBoxLayout()
+        self.ntarg_edit = QLineEdit()
+        self.ntarg_edit.setPlaceholderText('new folder name')
+        self.ntarg_dialog.layout.addWidget(self.ntarg_edit)
+        self.ntarg_dialog.layout.addWidget(buttonBox)
+        self.ntarg_dialog.setLayout(self.ntarg_dialog.layout)
+        self.ntarg_dialog.setFixedWidth(400)
+        self.ntarg_dialog.exec()
+        if self.newdir:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            self.mpCmds.mkdir(self.newdir)
+            self.viewTargetFiles()
+            QApplication.restoreOverrideCursor()
+
+    def ntarg_accept(self):
+        self.newdir = self.ntarg_edit.text()
+        self.ntarg_dialog.close()
+
+    def ntarg_reject(self):
+        self.newdir = ''
+        self.ntarg_dialog.close()
 
     def rmTargetFolder(self):
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        self.mpCmds.rmdir('testdir')
-        self.viewTargetFiles()
-        QApplication.restoreOverrideCursor()
+        self.rm_dir = ''
+        self.rm_dir_dialog = QDialog()
+        self.rm_dir_dialog.setWindowTitle('Remove Target Folder')
+        QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        buttonBox = QDialogButtonBox(QBtn)
+        buttonBox.accepted.connect(self.rm_dir_accept)
+        buttonBox.rejected.connect(self.rm_dir_reject)
+
+        self.rm_dir_tree = QTreeWidget()
+        self.rm_dir_tree.setColumnCount(1)
+        self.rm_dir_tree.move(0, 0)
+        self.rm_dir_tree.setHeaderItem(QTreeWidgetItem(['Target Folders']))
+
+        items = []
+        for i in range(len(self.TargetFileList)):
+            l1 = QTreeWidgetItem([self.TargetFileList[i]])
+            tmp = l1.text(0).split(';')  # remove the file size string from filename
+            l1.setText(0, tmp[0])
+            if tmp[0].startswith('/') and tmp[0].find('.') == -1:    # file or folder?
+                items.append(l1)
+
+        self.rm_dir_tree.addTopLevelItems(items)
+        if len(items) > 0:
+            self.rm_dir_tree.setCurrentItem(items[0])  # highlight first item
+        self.rm_dir_tree.expandAll()
+        self.rm_dir_dialog.layout = QVBoxLayout()
+        self.rm_dir_dialog.layout.addWidget(self.rm_dir_tree)
+        self.rm_dir_dialog.layout.addWidget(buttonBox)
+        self.rm_dir_dialog.setLayout(self.rm_dir_dialog.layout)
+        self.rm_dir_dialog.setFixedWidth(400)
+        self.rm_dir_dialog.exec()
+        if self.rm_dir:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            self.mpCmds.rmdir(self.rm_dir)
+            self.viewTargetFiles()
+            QApplication.restoreOverrideCursor()
+
+    def rm_dir_accept(self):
+        self.rm_dir = self.rm_dir_tree.currentItem().text(0)
+        self.rm_dir_dialog.close()
+
+    def rm_dir_reject(self):
+            self.rm_dir = ''
+            self.rm_dir_dialog.close()
 
     # Erase target memory prior to programming with (presumably) microPython
     def eraseTargetFlash(self):
@@ -1549,14 +1637,16 @@ class pyEditor(QMainWindow):
                                    "<p>Do you want to CONTINUE erasure?</p></h4>",
                                    QMessageBox.Yes | QMessageBox.No)
         if ret == QMessageBox.Yes:
-            self.shellText.moveCursor(self.cursor.End)
-            self.shellText.insertPlainText('Erasing Target Memory...\n')
-            self.shellText.append('Erasing Target Memory...\n')
+            self.shellTextAppend('Erasing Target Memory...\n', False)
             procCmdStr = ''
             if self.setx.getMCU() == 'ESP8266':
                 procCmdStr = 'esptool.py --port ' + self.setx.getSerialPort() + ' erase_flash'
             elif self.setx.getMCU() == 'ESP32C3':
                 procCmdStr = 'esptool.py --chip esp32c3 --port ' + self.setx.getSerialPort() + ' erase_flash'
+            elif self.setx.getMCU() == 'ESP32S2':
+                procCmdStr = 'esptool.py --chip esp32s2 --port ' + self.setx.getSerialPort() + ' erase_flash'
+            elif self.setx.getMCU() == 'ESP32S3':
+                procCmdStr = 'esptool.py --chip esp32s3beta2 --port ' + self.setx.getSerialPort() + ' erase_flash'
             self.mpBoard.serialClose()
             self.startProcess(procCmdStr)
         return
@@ -1572,25 +1662,31 @@ class pyEditor(QMainWindow):
 
         self.pgmf_path = self.setx.getAppPath() + '/microPython'
         self.pgmf_name, _ = QFileDialog.getOpenFileName(self, "Open Firmware File", self.pgmf_path,
-                                            "Binary files (*.bin)")
-        # self.pgmf_name = os.path.basename(self.pgmf_name)
+                                                        "Binary files (*.bin)")
         if not self.pgmf_name or not self.pgmf_name.endswith('.bin'):  # exit if dialog rejected
-            self.shellText.moveCursor(self.cursor.End)
-            self.shellText.insertPlainText('Programming Target Cancelled!\n')
-            # self.shellText.append('Programming Target Cancelled!\n')
+            self.shellTextAppend('Programming Target Cancelled!\n', False)
             return
 
-        self.shellText.moveCursor(self.cursor.End)
-        self.shellText.insertPlainText('Programming Target Memory...\n')
-        self.shellText.append('Programming Target Memory...\n')
-        if self.setx.getMCU() == 'ESP8266':
+        self.shellTextAppend('Programming Target Memory...\n', False)
+        chip = self.setx.getMCU().lower()
+        procCmdStr = ''
+        if chip == 'esp8266':
             procCmdStr = 'esptool.py --port ' + self.setx.getSerialPort() +\
                      ' --baud 460800 write_flash --flash_size=detect 0 ' + self.pgmf_name
-        elif self.setx.getMCU() == 'ESP32C3':
-            procCmdStr = 'esptool.py --chip esp32c3 --port ' + self.setx.getSerialPort() + \
+        elif chip == 'esp32c3':
+            procCmdStr = 'esptool.py --chip ' + chip + ' --port ' + self.setx.getSerialPort() + \
                          ' --baud 460800 write_flash -z 0x0 ' + self.pgmf_name
-        self.mpBoard.serialClose()
-        self.startProcess(procCmdStr)
+        elif self.setx.getMCU() == 'esp32s2':
+            procCmdStr = 'esptool.py --chip ' + chip + ' --port ' + self.setx.getSerialPort() + \
+                         ' --baud 460800 write_flash -z 0x1000 ' + self.pgmf_name
+        elif self.setx.getMCU() == 'esp32s3':
+            procCmdStr = 'esptool.py --chip esp32s3beta2 --port ' + self.setx.getSerialPort() + \
+                         ' write_flash -z 0 ' + self.pgmf_name
+        if procCmdStr:
+            self.mpBoard.serialClose()
+            self.startProcess(procCmdStr)
+        else:
+            self.shellTextAppend('Chip ' + chip + ' not currently supported!\n', False)
 
     def pgmf_accept(self):
         self.pgmf_name = self.pgmfedit.text()
@@ -1614,22 +1710,18 @@ class pyEditor(QMainWindow):
             self.extProc.start(procCmdStr)
             self.extProc.waitForStarted(3000)
         else:
-            self.shellText.append('Run process failed! Another process is currently running.\n')
+            self.shellTextAppend('Run process failed! Another process is currently running.\n', False)
 
     def procHandleStderr(self):
         data = self.extProc.readAllStandardError()
         stderr = bytes(data).decode("utf8")
-        self.shellText.moveCursor(self.cursor.End)
-        self.shellText.insertPlainText(stderr)
-        # self.shellText.append(stderr)
+        self.shellTextAppend(stderr, False)
 
     # external process returns data
     def procHandleStdout(self):
         data = self.extProc.readAllStandardOutput()
         stdout = bytes(data).decode("utf8")     # convert bytearray to string
-        self.shellText.moveCursor(self.cursor.End)
-        self.shellText.insertPlainText(stdout)
-        #self.shellText.append(stdout)   # default - send ext proc text to shellText
+        self.shellTextAppend(stdout, False)
 
     def procHandleState(self, state):
         states = {
@@ -1641,14 +1733,10 @@ class pyEditor(QMainWindow):
         # reopen closed serial port so REPL will work
         # if 'Stopped' in state_name:
         #     self.serialport.open(QIODevice.ReadWrite)
-        self.shellText.moveCursor(self.cursor.End)
-        self.shellText.insertPlainText(f"State changed: {state_name}")
-        # self.shellText.append(f"State changed: {state_name}")
+        self.shellTextAppend(f"State changed: {state_name}", False)
 
     def procFinished(self):
-        self.shellText.moveCursor(self.cursor.End)
-        self.shellText.insertPlainText('\nExternal process has Completed!\n')
-        # self.shellText.append('\nExternal process has Completed!\n')
+        self.shellTextAppend('\nExternal process has Completed!\n', False)
         if not self.mpBoard.isSerialOpen():
             self.mpBoard.serialOpen()
 
@@ -1998,9 +2086,10 @@ class pyEditor(QMainWindow):
 
         self.statusBar().showMessage("bookmarks changed")
 
-    def clearLabel(self):
+    def clearShellTerminal(self):
         self.shellText.setText("")
         self.shellText.moveCursor(self.cursor.End)
+        self.shellText.setFocus()
 
     def openRecentFile(self):
         action = self.sender()
