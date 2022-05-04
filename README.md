@@ -85,7 +85,6 @@ Reset the target board and you should expect to see a '>>>' prompt in the intera
 ## TODO
 - Add MacOS & Windows support (COM ports, etc.)
 - Create microPython developer docset for Zeal.
-- Create installation packages for Linux, Mac, & Windows.
 - Add support for REPL over WiFi (WebREPL, Telnet, or other?).
 
 
