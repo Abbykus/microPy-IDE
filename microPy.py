@@ -281,7 +281,7 @@ class pyEditor(QMainWindow):
         self.tabsList = QTabWidget()
         self.tabsList.setTabsClosable(True)
         self.tabsList.setTabVisible(0, True)
-        self.tabsList.currentChanged.connect(self.change_text_editor)
+        self.tabsList.currentChanged.connect(self.change_editor_tab)
         self.tabsList.tabCloseRequested.connect(self.remove_tab)
 
         self.cursor = QTextCursor()
@@ -300,19 +300,21 @@ class pyEditor(QMainWindow):
         self.projectFileViewer = fileViewer()
         self.projectFileViewer.setStyleSheet(stylesheet2(self))
         proj_name = self.setx.getCurProjectName()
-        if self.isProjectValid(proj_name):
+        proj_path = self.setx.getProjectPath() + '/' + self.setx.getCurProjectName()
+        if self.isProjectValid(proj_name) and os.path.isdir(proj_path):
             proj_name = 'Project: ' + proj_name
         else:
             proj_name = 'Project: None'
 
-        self.projectFileViewer.setHeaderItem(QTreeWidgetItem([proj_name]))
         self.projectFileViewer.setColumnCount(2)
+        self.projectFileViewer.setHeaderItem(QTreeWidgetItem([proj_name, 'Size']))
+        self.projectFileViewer.setColumnWidth(0, 180)
         self.projectFileViewer.itemDoubleClicked.connect(self.projectFileViewerDblClicked)
         self.projectFileViewer.setContextMenuPolicy(Qt.CustomContextMenu)
         self.projectFileViewer.customContextMenuRequested.connect(self.projectViewerContextMenu)
 
         # Populate the Project file viewer
-        self.viewProjectFiles(self.setx.getCurProjectPath())
+        self.viewProjectFiles(proj_path)
         self.projectFileViewer.expandAll()
 
         # Create the Target file viewer
@@ -884,14 +886,6 @@ class pyEditor(QMainWindow):
             self.baudrates.setCurrentIndex(indx)
             self.mpBoard.setSerialPortBaudrate(baud)
 
-    # def getFilesInDir(self, dirpath):
-    #     files = []
-    #     for file in os.listdir(dirpath):
-    #         fpath = dirpath + '/' + file
-    #         if os.path.isfile(fpath):
-    #             files.append(file)
-    #     return files
-
     def textSelectAll(self):
         mpconfig.editorList[mpconfig.currentTabIndex].selectAll()
 
@@ -910,26 +904,22 @@ class pyEditor(QMainWindow):
     def textPaste(self):
         mpconfig.editorList[mpconfig.currentTabIndex].paste()
 
-
     def isProjectValid(self, proj_name):
         if len(proj_name) == 0:
             return False
-        path = self.setx.getCurProjectPath()
+        path = self.setx.getProjectPath()
         return os.path.isdir(path)
 
-    # def getDirectory(self):
-    #     gdir_dialog = QFileDialog(self, 'Select Directory', self.setx.getAppPath(), None)
-    #     gdir_dialog.setFileMode(QFileDialog.DirectoryOnly)
-    #     #dialog.setSidebarUrls([QtCore.QUrl.fromLocalFile(place)])
-    #     if gdir_dialog.exec_() == QDialog.Accepted:
-    #         new_dir = gdir_dialog.selectedFiles()[0]
-    #         self.viewProjectFiles(new_dir)
-
     # View folders & files in the 'path' directory to the projectFileViewer tree widget
-    def viewProjectFiles(self, curpath):
+    def viewProjectFiles(self, curpath=''):
+        if not curpath:
+            curpath = self.setx.getProjectPath() + '/' + self.setx.getCurProjectName()
         self.projectFileViewer.clear()
-        if len(self.setx.getCurProjectName()) == 0:     # exit if no current project
+        if len(self.setx.getCurProjectName()) == 0 or not os.path.isdir(curpath):     # exit if no current project
             return
+
+        self.proj_itm = QTreeWidgetItem(self.projectFileViewer, [self.setx.getCurProjectName()])
+        self.proj_itm.setIcon(0, QIcon(self.setx.getAppPath() + '/icons/project'))
 
         self.load_project_tree(curpath, self.projectFileViewer)
         self.projectFileViewer.setItemsExpandable(True)
@@ -937,30 +927,36 @@ class pyEditor(QMainWindow):
 
         proj_name = 'Project: ' + self.setx.getCurProjectName()
         self.projectFileViewer.setHeaderItem(QTreeWidgetItem(['Project Files', 'Size']))
-        # sz = self.projectFileViewer.width()
-        # print('pfv width=', sz)
         self.projectFileViewer.setColumnWidth(0, 180)     # set col 0 size so file names aren't cropped
-        # self.projectFileViewer.header().setDefaultSectionSize(int(sz / 4))
 
     # recursive function to display directory contents in projectFileViewer
     def load_project_tree(self, startpath, tree):
         for element in os.listdir(startpath):
             path_info = os.path.join(startpath, element)
             file_stats = os.stat(path_info)
-            if element == self.setx.getCurProjectName():
-                parent_itm = QTreeWidgetItem(tree, [os.path.basename(element)])
-            else:
-                parent_itm = QTreeWidgetItem(tree, [os.path.basename(element), str(file_stats.st_size)])
-            parent_itm.setData(0, Qt.UserRole, path_info)
-            # parent_itm.setData(1, Qt.UserRole, '123')
-            if os.path.isdir(path_info):
-                self.load_project_tree(path_info, parent_itm)
-                parent_itm.setIcon(0, QIcon(self.setx.getAppPath() + '/icons/folder_closed'))
-            else:
-                parent_itm.setIcon(0, QIcon(self.setx.getAppPath() + '/icons/file'))
+            if not element.lower() == self.setx.getCurProjectName().lower() and os.path.isfile(path_info):
+                child_itm = QTreeWidgetItem([os.path.basename(element), str(file_stats.st_size)])
+                child_itm.setData(0, Qt.UserRole, path_info)
+                child_itm.setIcon(0, QIcon(self.setx.getAppPath() + '/icons/file'))
+                self.proj_itm.addChild(child_itm)
+                
+    # return a list of open files that have been modified
+    def getChangedFiles(self):
+        mod_files = []
+        for i in range(self.tabsList.count()):
+            tabtxt = self.tabsList.tabText(i)
+            if tabtxt.endswith('*'):
+                mod_files.append(i)
+        return mod_files
 
     def createNewProject(self):
-        self.new_proj = 'untitled'
+        mod_files = self.getChangedFiles()
+        if mod_files:
+            QMessageBox.warning(self, 'Create New Project', 'Some current project files have been modified.\n'
+                                + 'Save or Discard modified files before continuing.',
+                                QMessageBox.Ok, QMessageBox.Ok)
+            return
+        self.new_proj = ''
         self.np_dialog = QDialog()
         self.np_dialog.setWindowTitle('Enter New Project Name')
         QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
@@ -978,12 +974,12 @@ class pyEditor(QMainWindow):
         self.np_dialog.setFixedWidth(400)
         self.np_dialog.exec()
 
-        # new project accepted?
-        if self.new_proj == 'rejected':   # exit if project rejected
+        # new project name accepted?
+        if self.new_proj == '':   # exit if project rejected
             return
         # check if the project name already exists
         dup_proj_name = False
-        proj_path = self.setx.getAppPath() + '/projects'
+        proj_path = self.setx.getProjectPath()
         for folder in os.listdir(proj_path):
             if os.path.isdir(proj_path):
                 if folder.lower() == self.new_proj.lower():
@@ -991,85 +987,94 @@ class pyEditor(QMainWindow):
                     break
 
         if not dup_proj_name:
-            self.setx.setCurProject(self.setx.getAppPath() + '/projects/' + self.new_proj + '/')
-            os.mkdir(self.setx.getCurProjectPath())
-            os.chdir(self.setx.getCurProjectPath())
+            self.setx.setCurProjectName(self.new_proj)
+            os.mkdir(self.setx.getProjectPath() + '/' + self.new_proj)
+            os.chdir(self.setx.getProjectPath() + '/' + self.new_proj)
             self.statusBar().showMessage("New Project (" + self.new_proj + ") created.")
-            self.viewProjectFiles(self.setx.getCurProjectPath())
-
-        # self.newProjectAct.setEnabled(True)
-        # self.bookmarks.clear()
-        # self.setWindowTitle('new File[*]')
+            self.viewProjectFiles(self.setx.getProjectPath() + '/' + self.new_proj)
 
     def new_proj_accept(self):
         self.new_proj = self.projedit.text()
         self.np_dialog.close()
 
     def new_proj_reject(self):
-        self.new_proj = 'rejected'
+        self.new_proj = ''
         self.np_dialog.close()
 
     def openExistingProject(self):
-        # FIXME: fix duplicate project name and set new project details
-        proj_path = self.setx.getAppPath() + '/projects'
-        os.chdir(proj_path)
-        for folder in os.listdir(proj_path):
-            print(folder)
-            break
-        else:
-            print(proj_path)
-        self.setx.setCurProject(self.setx.getCurProjectPath() + self.new_proj)
-        self.newProjectAct.setEnabled(True)
+        mod_files = self.getChangedFiles()
+        if mod_files:
+            QMessageBox.warning(self, 'Open Project', 'Some current project files have been modified.\n'
+                                + 'Save or Discard modified files before continuing.',
+                                QMessageBox.Ok, QMessageBox.Ok)
+            return
+
+        self.open_proj = ''
+        self.open_proj_dialog = QDialog()
+        self.open_proj_dialog.setWindowTitle('Open Existing Project')
+        QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        buttonBox = QDialogButtonBox(QBtn)
+        buttonBox.accepted.connect(self.open_proj_accept)
+        buttonBox.rejected.connect(self.open_proj_reject)
+
+        self.open_proj_tree = QTreeWidget()
+        self.open_proj_tree.setColumnCount(1)
+        self.open_proj_tree.move(0, 0)
+        self.open_proj_tree.setHeaderItem(QTreeWidgetItem(['Project List']))
+
+        items = []
+        dirpath = self.setx.getProjectPath()
+        for file in os.listdir(dirpath):
+            l1 = QTreeWidgetItem([file])
+            items.append(l1)
+
+        # for i in range(len(self.TargetFileList)):
+        #     l1 = QTreeWidgetItem([self.TargetFileList[i]])
+        #     tmp = l1.text(0).split(';')  # remove the file size string from filename
+        #     l1.setText(0, tmp[0])
+        #     if tmp[0].startswith('/') and tmp[0].find('.') == -1:  # file or folder?
+        #         items.append(l1)
+
+        self.open_proj_tree.addTopLevelItems(items)
+        if len(items) > 0:
+            self.open_proj_tree.setCurrentItem(items[0])  # highlight first item
+        self.open_proj_tree.expandAll()
+        self.open_proj_dialog.layout = QVBoxLayout()
+        self.open_proj_dialog.layout.addWidget(self.open_proj_tree)
+        self.open_proj_dialog.layout.addWidget(buttonBox)
+        self.open_proj_dialog.setLayout(self.open_proj_dialog.layout)
+        self.open_proj_dialog.setFixedWidth(400)
+        self.open_proj_dialog.exec()
+        if self.open_proj:
+            self.setx.setCurProjectName(self.open_proj)
+            self.newProjectAct.setEnabled(True)
+            self.viewProjectFiles(dirpath + '/' + self.open_proj)
+
+    def open_proj_accept(self):
+        self.open_proj = self.open_proj_tree.currentItem().text(0)
+        self.open_proj_dialog.close()
+
+    def open_proj_reject(self):
+        self.open_proj = ''
+        self.open_proj_dialog.close()
 
     def closeCurrentProject(self):
-        return
+        mod_files = self.getChangedFiles()
+        if mod_files:
+            QMessageBox.warning(self, 'Close Current Project', 'Some current project files have been modified.\n'
+                                + 'Save or Discard modified files before continuing.',
+                                QMessageBox.Ok, QMessageBox.Ok)
+            return
+        reply = QMessageBox.question(self, 'Close Project', 'Are you sure you want to CLOSE the current Project\n'
+                                     + '"' + self.setx.getCurProjectName() + '" ?',
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.No:
+            return
+        for i in range(self.tabsList.count()-1, -1, -1):
+            self.remove_tab(i)
+        self.setx.setCurProjectName('')
+        self.viewProjectFiles(self.setx.getProjectPath())
 
-    # Function to display context menu on the target file viewer
-    # def targetViewerContextMenu(self, position):
-    #     tv_menu = QMenu(self.shellText)
-    #     tv_menu.addSection('TARGET ACTIONS:')
-    #     tv_act1 = QAction("Reset Target")
-    #     tv_act1.setIcon(QIcon(self.setx.getAppPath() + "/icons/restart"))
-    #     tv_act1.setIconVisibleInMenu(True)
-    #     tv_act1.triggered.connect(self.resetTargetDevice)
-    #     tv_menu.addAction(tv_act1)
-    #     tv_act2 = QAction("Run Script on Target")
-    #     tv_act2.setIcon(QIcon(self.setx.getAppPath() + "/icons/run"))
-    #     tv_act2.setIconVisibleInMenu(True)
-    #     tv_act2.triggered.connect(self.runTargetScript)
-    #     tv_menu.addAction(tv_act2)
-    #     tv_act3 = QAction("Stop Target Script")
-    #     tv_act3.setIcon(QIcon(self.setx.getAppPath() + "/icons/stop"))
-    #     tv_act3.setIconVisibleInMenu(True)
-    #     tv_act3.triggered.connect(self.stopTargetScript)
-    #     tv_menu.addAction(tv_act3)
-    #     tv_act4 = QAction("Download File to Target")
-    #     tv_act4.setIcon(QIcon(self.setx.getAppPath() + "/icons/download"))
-    #     tv_act4.setIconVisibleInMenu(True)
-    #     tv_act4.triggered.connect(self.downloadScript)
-    #     tv_menu.addAction(tv_act4)
-    #     tv_act5 = QAction("Upload File from Target")
-    #     tv_act5.setIcon(QIcon(self.setx.getAppPath() + "/icons/upload"))
-    #     tv_act5.setIconVisibleInMenu(True)
-    #     tv_act5.triggered.connect(self.uploadScript)
-    #     tv_menu.addAction(tv_act5)
-    #     tv_act6 = QAction("Remove File from Target")
-    #     tv_act6.setIcon(QIcon(self.setx.getAppPath() + "/icons/delete"))
-    #     tv_act6.setIconVisibleInMenu(True)
-    #     tv_act6.triggered.connect(self.removeScript)
-    #     tv_menu.addAction(tv_act6)
-    #     tv_act7 = QAction("New Target Folder")
-    #     tv_act7.setIcon(QIcon(self.setx.getAppPath() + "/icons/folder_add"))
-    #     tv_act7.setIconVisibleInMenu(True)
-    #     tv_act7.triggered.connect(self.newTargetFolder)
-    #     tv_menu.addAction(tv_act7)
-    #     tv_act8 = QAction("Remove Target Folder")
-    #     tv_act8.setIcon(QIcon(self.setx.getAppPath() + "/icons/folder_del"))
-    #     tv_act8.setIconVisibleInMenu(True)
-    #     tv_act8.triggered.connect(self.newTargetFolder)
-    #     tv_menu.addAction(tv_act8)
-    #     position.setY(position.y() + 50)
-    #     tv_menu.exec(self.shellText.mapToGlobal(position))
 
     # Function to display context menu on the project file viewer
     def projectViewerContextMenu(self, position):
@@ -1116,10 +1121,11 @@ class pyEditor(QMainWindow):
         pv_menu.exec(self.projectFileViewer.mapToGlobal(position))
 
 
+    # delete editor and its associated tab
     def remove_tab(self, index):
         if index != self.tabsList.currentIndex():
             self.tabsList.setCurrentIndex(index)
-            self.change_text_editor(index)       # select & highlight tab to remove
+            self.change_editor_tab(index)       # select & highlight tab to remove
         if not self.maybeSave():    # check if text in tab (editor) needs to be saved
             return
         # don't delete last tab
@@ -1218,8 +1224,8 @@ class pyEditor(QMainWindow):
             self.tabsList.setTabText(self.tabsList.currentIndex(), tabtxt)
             self.tabsList.setTabToolTip(self.tabsList.currentIndex(), tabtxt)
 
-    # tab selection has changed
-    def change_text_editor(self, index):
+    # tab selection has changed - show selected tab and tab text
+    def change_editor_tab(self, index):
         self.tabsList.setAutoFillBackground(True)
         c = self.tabsList.currentIndex()
         for i in range(self.tabsList.count()):
@@ -1250,7 +1256,7 @@ class pyEditor(QMainWindow):
         item_text = self.projectFileViewer.currentItem().text(0)
         # print(item_text)
         if len(item_text) > 0:
-            path = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName() + '/' + item_text
+            path = self.setx.getProjectPath() + '/' + self.setx.getCurProjectName() + '/' + item_text
             self.openFile(path)
             mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = False
 
@@ -1328,7 +1334,7 @@ class pyEditor(QMainWindow):
         sname = sname.replace('*', '')
         if sname != 'untitled':
             dialog.selectFile(sname)
-        dialog.setDirectory(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
+        dialog.setDirectory(self.setx.getProjectPath() + '/' + self.setx.getCurProjectName())
         dialog.setFileMode(QFileDialog.ExistingFile)
         filename = None
         fname = ''
@@ -1359,7 +1365,7 @@ class pyEditor(QMainWindow):
         dialog = QFileDialog(self)
         dialog.setWindowTitle('Download File to Target Device')
         dialog.setNameFilter('(*.py)')
-        dialog.setDirectory(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
+        dialog.setDirectory(self.setx.getProjectPath() + '/' + self.setx.getCurProjectName())
         if hl_file.endswith('.py'):
             dialog.selectFile(hl_file)
         dialog.setFileMode(QFileDialog.ExistingFile)
@@ -2125,7 +2131,7 @@ class pyEditor(QMainWindow):
             return
 
         # Check if new file name already exists in project directory
-        dirpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
+        dirpath = self.setx.getProjectPath() + '/' + self.setx.getCurProjectName()
         for file in os.listdir(dirpath):
             if self.newf_name.lower() == file.lower():
                 QMessageBox.warning(self, 'Error!', 'File name <' + self.newf_name + '> already exists!')
@@ -2139,7 +2145,7 @@ class pyEditor(QMainWindow):
         elif dup_tab == -1 and self.tabsList.tabText(self.tabsList.currentIndex()) == 'untitled' \
                 and mpconfig.editorList[mpconfig.currentTabIndex].toPlainText() != '':
             self.create_new_tab(path)
-        self.change_text_editor(mpconfig.currentTabIndex)
+        self.change_editor_tab(mpconfig.currentTabIndex)
         mpconfig.editorList[mpconfig.currentTabIndex].textHasChanged = False
         mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(self.cursor.End)
         self.statusBar().showMessage("new File (" + self.newf_name + ") created.")
@@ -2150,6 +2156,7 @@ class pyEditor(QMainWindow):
         self.setWindowTitle('new File[*]')
         # self.filename = self.newf_name
         self.fileSave()
+        self.viewProjectFiles()
 
     def newf_accept(self):
         self.newf_name = self.fileedit.text()
@@ -2189,28 +2196,29 @@ class pyEditor(QMainWindow):
     ### Open File
     def openFile(self, path=None):
         if not path:
-            path, _ = QFileDialog.getOpenFileName(self, "Open File", self.setx.getCurProjectPath() + '/' +
+            path, _ = QFileDialog.getOpenFileName(self, "Open File", self.setx.getProjectPath() + '/' +
                                                   self.setx.getCurProjectName(), "Python Files (*.py);; all Files (*)")
         if path:
             self.openFileOnStart(path)
 
     ### Save file
-    def fileSave(self):
+    def fileSave(self, ask_overwrite=False):
         # filename is kept in tab text
         fn = self.tabsList.tabBar().tabText(self.tabsList.currentIndex())   # filename on current editor tab
         if not fn.endswith('*'):    # exit if text is unchanged
             return
 
-        fpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
-        if self.findFileDup(fn, fpath):
-            reply = QMessageBox.question(self, 'Duplicate File Found!', 'Do you want to OVERWRITE the existing file?',
-                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if reply == QMessageBox.No:
-                return
+        fpath = self.setx.getProjectPath() + '/' + self.setx.getCurProjectName()
+        if ask_overwrite:
+            if self.findFileDup(fn, fpath):
+                reply = QMessageBox.question(self, 'File Already Exists!', 'Do you want to OVERWRITE the file?',
+                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if reply == QMessageBox.No:
+                    return
 
         if fn.endswith('*'):
             fn = fn.replace('*', '')
-        fpath += '/' + fn
+        fpath += '/' + fn       # full path to file
         if fn and fn != 'untitled':
             file = QFile(fpath)
             if not file.open(QFile.WriteOnly | QFile.Text):
@@ -2223,19 +2231,20 @@ class pyEditor(QMainWindow):
             outstr << mpconfig.editorList[mpconfig.currentTabIndex].toPlainText()   # write text to file & close
             file.close()
             self.setModified(False)
-            #self.fname = QFileInfo(fpath.fileName())
             self.statusBar().showMessage('File ' + fn + ' saved.')
             self.setCurrentFile(fpath, False)
             mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
-            self.viewProjectFiles(self.setx.getCurProjectPath())
+            self.viewProjectFiles()
             QApplication.restoreOverrideCursor()
         else:
             self.fileSaveAs()
 
     ### save File
     def fileSaveAs(self):
-        fpath = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
+        fpath = self.setx.getProjectPath() + '/' + self.setx.getCurProjectName()
         fname = self.tabsList.tabText(self.tabsList.currentIndex())
+        if fname.endswith('*'):
+            fname = fname.replace('*', '')
         fn, _ = QFileDialog.getSaveFileName(self, "Save as...", fpath + '/' + fname,
                                             "Python files (*.py)")
         if not fn:
@@ -2273,7 +2282,7 @@ class pyEditor(QMainWindow):
         dialog = QFileDialog(self)
         dialog.setWindowTitle('Delete Project File')
         dialog.setNameFilter('(*.py)')
-        dialog.setDirectory(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
+        dialog.setDirectory(self.setx.getProjectPath() + '/' + self.setx.getCurProjectName())
         dialog.setFileMode(QFileDialog.ExistingFile)
         sfile = self.projectFileViewer.currentItem().text(0)
         dialog.selectFile(sfile)
@@ -2303,7 +2312,7 @@ class pyEditor(QMainWindow):
 
             if os.path.exists(fpath):
                 os.remove(fpath)
-                self.viewProjectFiles(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
+                self.viewProjectFiles(self.setx.getProjectPath() + '/' + self.setx.getCurProjectName())
                 if tcount == 1:
                     mpconfig.editorList[0].clear()
                     mpconfig.editorList[0].textHasChanged = False
@@ -2314,7 +2323,7 @@ class pyEditor(QMainWindow):
         self.ren_dialog = QDialog()
         self.ren_edit = QLineEdit()
         self.new_fname = ''
-        cur_path = self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName()
+        cur_path = self.setx.getProjectPath() + '/' + self.setx.getCurProjectName()
         old_fname = self.projectFileViewer.currentItem().text(0)
         if not old_fname:
             QMessageBox.warning(self, "Warning!",
@@ -2342,7 +2351,7 @@ class pyEditor(QMainWindow):
             return
 
         os.rename(cur_path + '/' + old_fname, cur_path + '/' + self.new_fname)
-        self.viewProjectFiles(self.setx.getCurProjectPath() + '/' + self.setx.getCurProjectName())
+        self.viewProjectFiles(self.setx.getProjectPath() + '/' + self.setx.getCurProjectName())
         return
 
     def rename_accept(self):

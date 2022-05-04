@@ -122,18 +122,24 @@ class Settings(QWidget):
     def setWinClose(self):
         self.close()
 
-
-    def setCurProject(self, full_path):      # name str can be name only or with path included
-        self.settings.setValue(('CUR_PROJECT_FULL_PATH', full_path))
+    def setCurProject(self, full_path=''):      # name str can be name only or with path included
+        # self.settings.setValue(('CUR_PROJECT_FULL_PATH', full_path))
         _dir, _filename = os.path.split(full_path)
         self.settings.setValue('CUR_PROJECT_PATH', _dir)
         self.settings.setValue('CUR_PROJECT_NAME', _filename)
 
-    def getCurProjectPath(self):
+    # returns path to the 'projects' directory
+    def getProjectPath(self):
         return self.settings.value('CUR_PROJECT_PATH', '')
 
+    def setProjectPath(self, path):
+        self.settings.setValue('CUR_PROJECT_PATH', path)
+
     def getCurProjectName(self):
-            return self.settings.value('CUR_PROJECT_NAME', '')
+        return self.settings.value('CUR_PROJECT_NAME', '')
+
+    def setCurProjectName(self, proj_name):
+        self.settings.setValue('CUR_PROJECT_NAME', proj_name)
 
     def getFullProjectPath(self):
         return self.settings.value('CUR_PROJECT_FULL_PATH', '')
@@ -171,10 +177,10 @@ class Settings(QWidget):
             self.settings.setValue('CUR_TARGET_SCRIPT', 'False')
 
     def getCurProjectScript(self):
-        return self.settings.value('CUR_TARGET_SCRIPT', '')
+        return self.settings.value('CUR_PROJECT_SCRIPT', '')
 
     def setCurProjectScript(self, proj_script):
-        self.settings.setValue('CUR_TARGET_SCRIPT', proj_script)
+        self.settings.setValue('CUR_PROJECT_SCRIPT', proj_script)
 
     def getWinPos(self):
         return self.settings.value('WINPOS', '')
