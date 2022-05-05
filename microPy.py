@@ -312,6 +312,7 @@ class pyEditor(QMainWindow):
         self.projectFileViewer.itemDoubleClicked.connect(self.projectFileViewerDblClicked)
         self.projectFileViewer.setContextMenuPolicy(Qt.CustomContextMenu)
         self.projectFileViewer.customContextMenuRequested.connect(self.projectViewerContextMenu)
+        self.projectFileViewer.setUniformRowHeights(False)
 
         # Populate the Project file viewer
         self.viewProjectFiles(proj_path)
@@ -919,6 +920,11 @@ class pyEditor(QMainWindow):
             return
 
         self.proj_itm = QTreeWidgetItem(self.projectFileViewer, [self.setx.getCurProjectName()])
+        ffont = self.proj_itm.font(0)
+        ffont.setPointSize(12)
+        ffont.setBold(True)
+        # ffont.setItalic(True)
+        self.proj_itm.setFont(0, ffont)
         self.proj_itm.setIcon(0, QIcon(self.setx.getAppPath() + '/icons/project'))
 
         self.load_project_tree(curpath, self.projectFileViewer)
@@ -927,7 +933,7 @@ class pyEditor(QMainWindow):
 
         proj_name = 'Project: ' + self.setx.getCurProjectName()
         self.projectFileViewer.setHeaderItem(QTreeWidgetItem(['Project Files', 'Size']))
-        self.projectFileViewer.setColumnWidth(0, 180)     # set col 0 size so file names aren't cropped
+        self.projectFileViewer.setColumnWidth(0, 170)     # set col 0 size so file names aren't truncated
 
     # recursive function to display directory contents in projectFileViewer
     def load_project_tree(self, startpath, tree):
@@ -1048,6 +1054,8 @@ class pyEditor(QMainWindow):
         if self.open_proj:
             self.setx.setCurProjectName(self.open_proj)
             self.newProjectAct.setEnabled(True)
+            for i in range(self.tabsList.count() - 1, -1, -1):
+                self.remove_tab(i)
             self.viewProjectFiles(dirpath + '/' + self.open_proj)
 
     def open_proj_accept(self):
@@ -1254,7 +1262,6 @@ class pyEditor(QMainWindow):
     # Project File Viewer was double clicked
     def projectFileViewerDblClicked(self, index):
         item_text = self.projectFileViewer.currentItem().text(0)
-        # print(item_text)
         if len(item_text) > 0:
             path = self.setx.getProjectPath() + '/' + self.setx.getCurProjectName() + '/' + item_text
             self.openFile(path)
@@ -1320,7 +1327,7 @@ class pyEditor(QMainWindow):
             targ1.addChild(targ1_child)
 
         self.targetFileViewer.addTopLevelItem(targ1)
-        self.targetFileViewer.setColumnWidth(0, 180)  # set col 0 size so file names aren't cropped
+        self.targetFileViewer.setColumnWidth(0, 170)  # set col 0 size so file names aren't cropped
         self.targetFileViewer.expandAll()
         QApplication.restoreOverrideCursor()
 
@@ -2189,6 +2196,7 @@ class pyEditor(QMainWindow):
                     self.setModified(False)
                 self.setCurrentFile(path, False)
                 self.statusBar().showMessage('File ' + path + ' loaded.')
+                mpconfig.editorList[mpconfig.currentTabIndex].moveCursor(QTextCursor.End)
                 mpconfig.editorList[mpconfig.currentTabIndex].setFocus()
             else:
                 print('Failed opening file: ' + path)
@@ -2904,7 +2912,7 @@ def stylesheet2(self):
     QTreeWidget
     {
     background: #2B2B2B;
-    color: #A0A0A0;
+    color: #d1d1d1;
     font-family: Monospace;
     font-size: 8pt;
     padding-left: 8px;

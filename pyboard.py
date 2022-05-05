@@ -235,23 +235,31 @@ class Pyboard:
         serialBytes = bytes(self.serialport.readAll())
         outstr = ''
         i = 0
-        # strip binary crap from serial data
+        # strip non-ascii bytes from serial data
         while i < len(serialBytes):
+            # print(hex(serialBytes[i]), end=',')
+            # filter out leading cr/lf that echo user input
             if (serialBytes[i] == 10 or serialBytes[i] == 13) and not self.block_cr:
                 outstr = outstr + chr(serialBytes[i])
-            # special action for backspace
+                # print(hex(serialBytes[i]), end=',')
+
             if 31 < serialBytes[i] < 128:
                 outstr = outstr + chr(serialBytes[i])
+                self.block_cr = False
+                # print(hex(serialBytes[i]), end=',')
+            # special action for backspace
             else:
                 if serialBytes[i] == 8:
                     backspc = True
-                # print(binascii.hexlify(bytearray(serialBytes[i])))
-                # print(hex(serialBytes[i]))
+            # print(binascii.hexlify(bytearray(serialBytes[i])))
+            # print(hex(serialBytes[i]))
             i += 1
 
+        # print('')
+
         if backspc:
-            new_content = self.shelltext.toPlainText()
-            prompt = new_content[-5:]
+            # new_content = self.shelltext.toPlainText()
+            # prompt = new_content[-5:]
             # prev_cursor = self.shelltext.textCursor()
             # self.shelltext.moveCursor(QTextCursor.End)
             # # Use any backspaces that were left in input to delete text
@@ -260,7 +268,7 @@ class Pyboard:
             # self.shelltext.setTextCursor(prev_cursor)
             return
 
-        # self.block_cr = False
+        self.block_cr = False
 
         if not self.block_echo:
             self.shelltext.moveCursor(self.cursor.End)
