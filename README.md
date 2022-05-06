@@ -1,6 +1,6 @@
 # ***microPy-IDE***
 
-## STATUS: Beta release version 0.1.2 04/27/2022.
+## STATUS: Beta release version 0.1.3 05/06/2022.
 
 The *microPy-IDE* is a development environment for the [microPython language](https://micropython.org/) which is a subset of Python 3 and is optimised to run on microcontrollers and in constrained environments. 
 
@@ -31,7 +31,7 @@ The *microPy-IDE* allows the user to create, test, and deploy microPython script
 - microPython deployment:
   - Erase and program the target devices flash memory with microPython firmware.
 
-## DEPENDENCIES
+## Install Dependencies
 
 ### Python 3.x
 As a prerequisite the host PC must have at least Python 3.6 and PIP3 installed. 
