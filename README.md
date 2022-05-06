@@ -1,6 +1,6 @@
 # ***microPy-IDE***
 
-## STATUS: Beta release version 0.1.2 04/27/2022.
+## STATUS: Beta release version 0.1.3 05/06/2022.
 
 The *microPy-IDE* is a development environment for the [microPython language](https://micropython.org/) which is a subset of Python 3 and is optimised to run on microcontrollers and in constrained environments. 
 
@@ -31,7 +31,7 @@ The *microPy-IDE* allows the user to create, test, and deploy microPython script
 - microPython deployment:
   - Erase and program the target devices flash memory with microPython firmware.
 
-## DEPENDENCIES
+## Install Dependencies
 
 ### Python 3.x
 As a prerequisite the host PC must have at least Python 3.6 and PIP3 installed. 
@@ -47,12 +47,12 @@ PIP3 is a package manager for Python applications. Use the following instrctuins
   - See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
 
 ### Install PYQT5 GUI Widgets Toolkit
-Open a terminal and type **pip3 install pyqt5 pyqt5-tools**.
+Open a terminal and type **pip install pyqt5 pyqt5-tools**.
 
 ### Install Espressif *esptool* (optional)
 Install *esptool* to allow the IDE to erase and program ESP8266 or ESP32 target boards with microPython. 
 
-- Launch a terminal window and type **pip3 install esptool**.
+- Launch a terminal window and type **pip install esptool**.
 
 ### Install Zeal Offline Language Reference (optional)
 Zeal is an offline developer help system. This can be a very useful application for looking up Python / MicroPython language constructs.
@@ -68,24 +68,34 @@ After installing *zeal*, launch it and goto ***tools->docsets*** and add Python 
 Install *microPy-IDE* by cloning this project to your local machine. Click on the *Code* button and download the Zip file.
 Unpack the Zip file in a folder of your choice.
 Open a terminal and navigate to the microPy-IDE-master folder.
-Type ***python3 microPy.py***.
+Type ***python microPy.py***.
 
 ## MicroPython Firmware for the QDEV Boards
 All versions of the Abbykus QDEV boards are capable of running the MicroPython language. 
 Please see [MicroPython-python for Microcontrollers](https://micropython.org/) for more information.
 
-To install MicroPython firmware on the QDEV board see [Getting Started with the ESP8266](https://docs.micropython.org/en/latest/esp8266/tutorial/intro.html#intro) ***or*** [Getting Started with the ESP32](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html#esp32-intro).
+The microPython interpreter can be installed on the specific MCU version using the microPy-IDE software. 
+The microPython folder contains stable releases for supported MCU's. See also [MicroPython Downloads](https://micropython.org/download/) for the latest firmware releases.
 
-See also [MicroPython Downloads](https://micropython.org/download/) for the latest firmware releases.
+### Firmware installation instructions
+
+#### Install Firmware from microPy-IDE
+1) In the microPy-IDE Settings menu choose the supported MCU (ESP8266, etc.).
+2) Click the *Erase Target Memory* button on the microPython toolbar on the bottom of the application. Wait for it to finish.
+3) Click the *Flash Target Firmware* button and select the correct firmware **.bin** file for your MCU. Wait for it to finish.
+
+#### Install Firmware Manually
+To manually install MicroPython firmware on the QDEV board see [Getting Started with the ESP8266](https://docs.micropython.org/en/latest/esp8266/tutorial/intro.html#intro) ***or*** [Getting Started with the ESP32](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html#esp32-intro).
 
 Once you have installed MicroPython on the QDEV board you can connect to the board with the microPy-IDE. 
 First set the serial port name, on Linux typically /dev/ttyUSB0. Also set the baudrate to 115200.
-Reset the target board and you should expect to see a '>>>' prompt in the interactive shell terminal indicating the interactive mode. You can enter MicroPython commands or scripts manually.
+Reset the target board and you should expect to see a **'>>>'** prompt in the interactive shell terminal indicating the interactive mode. You can enter MicroPython commands or scripts manually.
 
 ## TODO
 - Add MacOS & Windows support (COM ports, etc.)
 - Create microPython developer docset for Zeal.
 - Add support for REPL over WiFi (WebREPL, Telnet, or other?).
+- Create WiKi use instructions.
 
 
 
