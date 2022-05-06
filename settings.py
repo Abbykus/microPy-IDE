@@ -152,20 +152,20 @@ class Settings(QWidget):
         return self.settings.value('OS_TYPE', 'OS Unknown')
 
     def getSerialPort(self):
-        os = self.settings.value('OS_TYPE', '').lower()
-        if os == 'linux':
+        os_type = self.settings.value('OS_TYPE', '').lower()
+        if os_type == 'linux':
             return self.settings.value('SERIAL_PORT', '/dev/ttyUSB0')
-        elif os == 'windows':
+        elif os_type == 'windows':
             return self.settings.value('SERIAL_PORT', 'COM1')
 
     def setSerialPort(self, serial_port_name):
         self.settings.setValue('SERIAL_PORT', serial_port_name)
 
     def getBaudRate(self):
-        return self.settings.value('BAUD_RATE', 115200)
+        return self.settings.value('BAUD_RATE', '115200')
 
     def setBaudRate(self, baud):
-        return self.settings.setValue('BAUD_RATE', baud)
+        return self.settings.setValue('BAUD_RATE', baud)        # baud is a string
 
     def getCurTargetScript(self):
         return self.settings.value('CUR_TARGET_SCRIPT', '')

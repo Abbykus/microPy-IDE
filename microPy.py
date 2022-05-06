@@ -16,7 +16,7 @@ from PyQt5.QtCore import (Qt, QVariant, QRect, QDir, QFile, QFileInfo, QTextStre
                           pyqtSlot, QModelIndex, QThread)
 
 from PyQt5.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
-#from PyQt5.QtSerialPort import QSerialPort
+from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 
 from sys import argv
 import inspect
@@ -34,6 +34,7 @@ import settings
 import pyboard
 import files
 import asyncio
+
 
 '''
 COMMON COLOR VALUES 
@@ -717,17 +718,25 @@ class pyEditor(QMainWindow):
         mptb.setFloatable(False)
 
         ### Serial Port line editor widget
-        self.comportfield = QLineEdit()
+        self.comportfield = QComboBox()
         self.comportfield.setStyleSheet(stylesheet2(self))
-        self.comportfield.addAction(QIcon.fromTheme(self.setx.getAppPath() + "/icons/connect"), QLineEdit.LeadingPosition)
-        self.comportfield.setClearButtonEnabled(True)
         self.comportfield.setFixedWidth(150)
-        if self.setx.getSerialPort():
-            self.comportfield.setText(self.setx.getSerialPort())
+
+        available_ports = QSerialPortInfo.availablePorts()
+        com_list = []
+        for port in available_ports:
+            port_name = port.portName()
+            if sys.platform.lower() == 'linux':
+                port_name = '/dev/' + port_name
+            com_list.append(port_name)
+
+        if not com_list:
+            self.comportfield.setPlaceholderText("No serial ports found!")
         else:
-            self.comportfield.setPlaceholderText("serial com port")
+            self.comportfield.addItems(com_list)
+
         self.comportfield.setToolTip("Serial Port Name")
-        self.comportfield.returnPressed.connect(self.saveComPort)
+        self.comportfield.activated[str].connect(self.saveComPort)
         mptb.addWidget(self.comportfield)
         mptb.addSeparator()
 
@@ -882,10 +891,19 @@ class pyEditor(QMainWindow):
         self.statusBar().showMessage("Application Path: " + self.setx.getAppPath(), 0)
 
         baud = self.setx.getBaudRate()
-        if len(baud) > 0:
+        if baud:
             indx = self.baudrates.findText(baud)
             self.baudrates.setCurrentIndex(indx)
             self.mpBoard.setSerialPortBaudrate(baud)
+
+        comport = self.setx.getSerialPort()
+        if comport:
+            indx = self.comportfield.findText(comport)
+            if indx == -1:
+                self.comportfield.addItem(comport)
+                indx = self.comportfield.count() -1
+            self.comportfield.setCurrentIndex(indx)
+            self.mpBoard.setSerialPortName(comport)
 
     def textSelectAll(self):
         mpconfig.editorList[mpconfig.currentTabIndex].selectAll()
@@ -1757,13 +1775,9 @@ class pyEditor(QMainWindow):
         self.setx.setBaudRate(baud)
         self.mpBoard.setSerialPortBaudrate(baud)
 
-    def saveComPort(self):
-        if len(self.comportfield.text()) > 0:
-            self.comportfield.selectAll()
-            self.comportfield.repaint()
-            self.setx.setSerialPort(self.comportfield.text())
-            self.mpBoard.setSerialPortName(self.comportfield.text())
-            self.comportfield.deselect()
+    def saveComPort(self, comport):
+        self.setx.setSerialPort(comport)
+        self.mpBoard.setSerialPortName(comport)
 
     def keyPressEvent(self, event):
         if mpconfig.currentTabIndex >= 0:
