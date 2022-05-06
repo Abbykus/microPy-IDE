@@ -47,12 +47,12 @@ PIP3 is a package manager for Python applications. Use the following instrctuins
   - See [here](https://stackoverflow.com/questions/70727436/how-to-install-pip3-on-windows-10) for details on Windows installation.
 
 ### Install PYQT5 GUI Widgets Toolkit
-Open a terminal and type **pip3 install pyqt5 pyqt5-tools**.
+Open a terminal and type **pip install pyqt5 pyqt5-tools**.
 
 ### Install Espressif *esptool* (optional)
 Install *esptool* to allow the IDE to erase and program ESP8266 or ESP32 target boards with microPython. 
 
-- Launch a terminal window and type **pip3 install esptool**.
+- Launch a terminal window and type **pip install esptool**.
 
 ### Install Zeal Offline Language Reference (optional)
 Zeal is an offline developer help system. This can be a very useful application for looking up Python / MicroPython language constructs.
@@ -68,7 +68,7 @@ After installing *zeal*, launch it and goto ***tools->docsets*** and add Python 
 Install *microPy-IDE* by cloning this project to your local machine. Click on the *Code* button and download the Zip file.
 Unpack the Zip file in a folder of your choice.
 Open a terminal and navigate to the microPy-IDE-master folder.
-Type ***python3 microPy.py***.
+Type ***python microPy.py***.
 
 ## MicroPython Firmware for the QDEV Boards
 All versions of the Abbykus QDEV boards are capable of running the MicroPython language. 
