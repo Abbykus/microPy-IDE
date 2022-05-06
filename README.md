@@ -77,14 +77,14 @@ Please see [MicroPython-python for Microcontrollers](https://micropython.org/) f
 The microPython interpreter can be installed on the specific MCU version using the microPy-IDE software. 
 The microPython folder contains stable releases for supported MCU's. See also [MicroPython Downloads](https://micropython.org/download/) for the latest firmware releases.
 
-## Firmware installation instructions
+### Firmware installation instructions
 
-### Install Firmware from microPy-IDE
+#### Install Firmware from microPy-IDE
 1) In the microPy-IDE Settings menu choose the supported MCU (ESP8266, etc.).
 2) Click the *Erase Target Memory* button on the microPython toolbar on the bottom of the application. Wait for it to finish.
 3) Click the *Flash Target Firmware* button and select the correct firmware **.bin** file for your MCU. Wait for it to finish.
 
-### Install Firmware Manually
+#### Install Firmware Manually
 To manually install MicroPython firmware on the QDEV board see [Getting Started with the ESP8266](https://docs.micropython.org/en/latest/esp8266/tutorial/intro.html#intro) ***or*** [Getting Started with the ESP32](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html#esp32-intro).
 
 Once you have installed MicroPython on the QDEV board you can connect to the board with the microPy-IDE. 
