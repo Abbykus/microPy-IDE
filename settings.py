@@ -153,10 +153,10 @@ class Settings(QWidget):
 
     def getSerialPort(self):
         os_type = self.settings.value('OS_TYPE', '').lower()
-        if os_type == 'linux':
-            return self.settings.value('SERIAL_PORT', '/dev/ttyUSB0')
-        elif os_type == 'windows':
+        if os_type.startswith('win'):
             return self.settings.value('SERIAL_PORT', 'COM1')
+        elif os_type == 'linux':
+            return self.settings.value('SERIAL_PORT', '/dev/ttyUSB0')
 
     def setSerialPort(self, serial_port_name):
         self.settings.setValue('SERIAL_PORT', serial_port_name)

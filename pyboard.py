@@ -68,6 +68,7 @@ import time
 from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 from PyQt5.QtCore import QIODevice, QBuffer, QByteArray
 from PyQt5.QtGui import QTextCursor
+import serial
 import binascii
 # import settings
 # import mpconfig
@@ -182,9 +183,18 @@ class Pyboard:
         if self.serialport.isOpen():
             self.ignoreSerial = True
             self.serialport.flush()
-            self.serialport.setDataTerminalReady(False)
-            time.sleep(0.1)
-            self.serialport.setDataTerminalReady(True)
+            if self.serialport.isDataTerminalReady():   # hack for windoze 10
+                self.serialport.setDataTerminalReady(False)
+                time.sleep(0.1)
+                self.serialport.setDataTerminalReady(True)
+            else:
+                self.serialport.close()     # close pyqt5 serialport and open pyserial port
+                ser = serial.Serial(self._device)   # use pyserial to hack dtr bug
+                ser.setDTR(False)
+                time.sleep(0.1)
+                ser.setDTR(True)
+                ser.close()
+                self.serialport.open(QIODevice.ReadWrite)
             time.sleep(0.1)
             data = self.read_until(1, b'>>>', 2)
             # if data.endswith(b'>>>'):
