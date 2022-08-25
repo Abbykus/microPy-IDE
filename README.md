@@ -70,11 +70,11 @@ Unpack the Zip file in a folder of your choice.
 Open a terminal and navigate to the microPy-IDE-master folder.
 Type ***python microPy.py***.
 
-## MicroPython Firmware for the QDEV Boards
+## MicroPython Firmware for ESP32 Boards
 All versions of the Abbykus QDEV boards are capable of running the MicroPython language. 
 Please see [MicroPython-python for Microcontrollers](https://micropython.org/) for more information.
 
-The microPython interpreter can be installed on the specific MCU version using the microPy-IDE software. 
+The microPython interpreter can be installed on the specific ESP32 MCU variant using the microPy-IDE software. 
 The microPython folder contains stable releases for supported MCU's. See also [MicroPython Downloads](https://micropython.org/download/) for the latest firmware releases.
 
 ### Firmware installation instructions
